@@ -1,0 +1,8 @@
+const STARDUST: u64 = 1;
+const GROUNDBREAKING: u64 = 2;
+const KEEP_EM_SEPARATED: u64 = 3;
+const NO_SOUND_IN_SPACE: u64 = 4;
+const THE_CAKE_IS_A_HALF_TRUTH: u64 = 5;
+const FLY_ME_TO_THE_MOON: u64 = 6;
+const ALWAYS_LEAVE_A_NOTE: u64 = 7;
+const GREATNESS: u64 = 8;

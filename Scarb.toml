@@ -1,0 +1,24 @@
+[package]
+name = "influence"
+version = "0.1.0"
+cairo-version = "2.1.0"
+homepage = "https://github.com/adaliafoundation/influence-starknet"
+
+[dependencies]
+starknet = ">=2.1.0"
+cubit = { path = "./vendor/cubit" }
+
+[[target.starknet-contract]]
+name = "Contract"
+sierra = true
+casm = true
+casm-add-pythonic-hints = true
+allowed-libfuncs-list.name = "experimental"
+allowed-libfuncs = true
+
+[scripts]
+test = "cairo-test . --starknet"
+
+[lib]
+sierra = false  # Enable Sierra codegen.
+casm = false   # Enable CASM codegen.

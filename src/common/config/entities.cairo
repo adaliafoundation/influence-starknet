@@ -1,0 +1,10 @@
+const CREW: u64 = 1;
+const CREWMATE: u64 = 2;
+const ASTEROID: u64 = 3;
+const LOT: u64 = 4;
+const BUILDING: u64 = 5;
+const SHIP: u64 = 6;
+const DEPOSIT: u64 = 7;
+const ORDER: u64 = 8;
+const DELIVERY: u64 = 9;
+const SPACE: u64 = 10; // location of ships in transit

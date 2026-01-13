@@ -1,0 +1,36 @@
+{
+  "name": "influence-starknet",
+  "version": "2.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "build": "scarb build",
+    "format": "cairo-format ./src -r",
+    "test": "npm run test-contracts && npm run test-integration",
+    "test-contracts": "cairo-test . -f influence --starknet ",
+    "test-integration": "mocha ./test --require ./test/utils/setup.js --timeout 600000",
+    "postinstall": "git submodule update --init --recursive",
+    "update-submodules": "git submodule update --remote",
+    "manager": "node ./bin/manager.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@influenceth/ibis": "^0.1.0-alpha.35",
+    "@influenceth/sdk": "^2.3.0",
+    "axios": "^1.4.0",
+    "bignumber.js": "^9.1.1",
+    "chai": "^4.3.7",
+    "dotenv": "^16.3.1",
+    "glob": "^10.3.3",
+    "lodash": "^4.17.21",
+    "lodash.isequal": "^4.5.0",
+    "mocha": "^10.2.0",
+    "moment": "^2.29.4",
+    "yargs": "^17.7.2"
+  },
+  "dependencies": {
+    "starknet": "6.7"
+  }
+}

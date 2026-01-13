@@ -1,0 +1,4 @@
+[submodule "cubit"]
+	path = vendor/cubit
+	url = https://github.com/influenceth/cubit
+	branch = 97fc624

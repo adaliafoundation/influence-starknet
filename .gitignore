@@ -1,0 +1,15 @@
+cache/cairo*
+cache/local*
+cache/solidity*
+cache/devnet_contracts.json
+cache/devnet*
+target
+.DS_Store
+node_modules
+cairo_modules
+starknet-artifacts
+.python-version
+.vscode
+ibis.config.json
+.env*
+temp

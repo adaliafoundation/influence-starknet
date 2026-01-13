@@ -1,0 +1,3 @@
+[crate_roots]
+influence = "src"
+cubit = "vendor/cubit/src"

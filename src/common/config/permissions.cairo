@@ -1,0 +1,14 @@
+const USE_LOT: u64 = 1;
+const RUN_PROCESS: u64 = 2;
+const ADD_PRODUCTS: u64 = 3;
+const REMOVE_PRODUCTS: u64 = 4;
+const STATION_CREW: u64 = 5;
+const RECRUIT_CREWMATE: u64 = 6;
+const DOCK_SHIP: u64 = 7;
+const BUY: u64 = 8;
+const SELL: u64 = 9;
+const LIMIT_BUY: u64 = 10;
+const LIMIT_SELL: u64 = 11;
+const EXTRACT_RESOURCES: u64 = 12;
+const ASSEMBLE_SHIP: u64 = 13;
+const USE_DEPOSIT: u64 = 14;
