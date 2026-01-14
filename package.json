@@ -14,8 +14,8 @@
     "update-submodules": "git submodule update --remote",
     "manager": "node ./bin/manager.js"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "Unstoppable Games, Inc.",
+  "license": "CC-BY-NC-4.0",
   "devDependencies": {
     "@influenceth/ibis": "^0.1.0-alpha.35",
     "@influenceth/sdk": "^2.3.0",
