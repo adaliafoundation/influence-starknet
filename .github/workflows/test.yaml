@@ -24,12 +24,13 @@ jobs:
       - name: Install cairo compiler
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          rustup override set stable && rustup update
+          source "$HOME/.cargo/env"
+          rustup toolchain install 1.76.0
+          rustup override set 1.76.0
           git clone https://github.com/starkware-libs/cairo
           cd cairo
-          git checkout v2.1.0
-          cargo update
-          cargo build --all --release
+          git checkout v2.1.1
+          cargo build --all --release --locked
           cd ../
 
       - name: Add Cairo compiler to path
