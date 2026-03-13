@@ -9,6 +9,7 @@ Commercial use is not permitted without a separate license from Unstoppable Game
 - `npm install` (will run submodule update automatically)
 - Must setup `.env` to include `SIERRA_COMPILER_PATH`, currently dependent on v2.1.1
 - Relies on `starknet-devnet` version 0.7.2 to be installed in local `pyenv` for integration testing
+- Unzip `devnet.dump.zip` in `./test/seeds` to `./test/seeds/devnet.dump` for integration testing
 
 ## Build
 - `npm run build`
