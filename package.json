@@ -12,12 +12,13 @@
     "test-integration": "mocha ./test --require ./test/utils/setup.js --timeout 600000",
     "postinstall": "git submodule update --init --recursive",
     "update-submodules": "git submodule update --remote",
-    "manager": "node ./bin/manager.js"
+    "manager": "node ./bin/manager.js",
+    "devnet": "starknet-devnet --timeout 5000 --seed 12345 --initial-balance 10000000000000000000000000 --dump-path ./test/seeds/devnet.dump --dump-on exit"
   },
   "author": "Unstoppable Games, Inc.",
   "license": "CC-BY-NC-4.0",
   "devDependencies": {
-    "@influenceth/ibis": "^0.1.0-alpha.35",
+    "@influenceth/ibis": "^0.1.0-alpha.41",
     "@influenceth/sdk": "^2.3.0",
     "axios": "^1.4.0",
     "bignumber.js": "^9.1.1",
@@ -31,6 +32,6 @@
     "yargs": "^17.7.2"
   },
   "dependencies": {
-    "starknet": "6.7"
+    "starknet": "^8.9.0"
   }
 }

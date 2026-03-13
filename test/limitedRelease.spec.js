@@ -178,7 +178,12 @@ describe('Limited Release functionality', function () {
     // Add price for Adalians
     dispatcher.connect(admin);
     let res = await dispatcher.compileAndInvoke('register_constant', {
-      name: shortString.encodeShortString('ADALIAN_PRICE_ETH'), value: 2500000000000000n
+      name: shortString.encodeShortString('ADALIAN_PURCHASE_PRICE'), value: 2500000000000000n
+    });
+
+    await admin.waitForTransaction(res.transaction_hash);
+    res = await dispatcher.compileAndInvoke('register_constant', {
+      name: shortString.encodeShortString('ADALIAN_PURCHASE_TOKEN'), value: BigInt(ETHER_ADDRESS)
     });
 
     await admin.waitForTransaction(res.transaction_hash);
@@ -190,13 +195,12 @@ describe('Limited Release functionality', function () {
       calldata: [
         4 // collection
       ]
-    }), 'ERC20: insufficient allowance');
+    }), 'u256_sub Overflow');
   });
 
   it('should allow purchasing an Adalian', async function () {
     // Approve ETH
-    const ether = new Contract(contracts.abi('Ether'), ETHER_ADDRESS, provider);
-    ether.connect(player2);
+    const ether = new Contract({ abi: contracts.abi('Ether'), address: ETHER_ADDRESS, providerOrAccount: player2 });
     const call = ether.populate('approve', [ dispatcher.address, uint256.bnToUint256(2500000000000000n) ]);
     let res = await ether.approve(call.calldata);
     await player2.waitForTransaction(res.transaction_hash);
@@ -251,8 +255,7 @@ describe('Limited Release functionality', function () {
 
   it('should allow purchasing and recruiting an Adalian', async function () {
       // Approve ETH
-      const ether = new Contract(contracts.abi('Ether'), ETHER_ADDRESS, provider);
-      ether.connect(player2);
+      const ether = new Contract({ abi: contracts.abi('Ether'), address: ETHER_ADDRESS, providerOrAccount: player2 });
       const call = ether.populate('approve', [ dispatcher.address, uint256.bnToUint256(2500000000000000n) ]);
       let res = await ether.approve(call.calldata);
       await player2.waitForTransaction(res.transaction_hash);
@@ -582,12 +585,17 @@ describe('Limited Release functionality', function () {
     const lotPrice = 1250000000000000n;
     dispatcher.connect(admin);
     let res = await dispatcher.compileAndInvoke('register_constant', {
-      name: shortString.encodeShortString('ASTEROID_BASE_PRICE_ETH'), value: basePrice
+      name: shortString.encodeShortString('ASTEROID_PURCHASE_BASE_PRICE'), value: basePrice
     });
 
     await admin.waitForTransaction(res.transaction_hash);
     res = await dispatcher.compileAndInvoke('register_constant', {
-      name: shortString.encodeShortString('ASTEROID_LOT_PRICE_ETH'), value: lotPrice
+      name: shortString.encodeShortString('ASTEROID_PURCHASE_LOT_PRICE'), value: lotPrice
+    });
+
+    await admin.waitForTransaction(res.transaction_hash);
+    res = await dispatcher.compileAndInvoke('register_constant', {
+      name: shortString.encodeShortString('ASTEROID_PURCHASE_TOKEN'), value: BigInt(ETHER_ADDRESS)
     });
 
     await admin.waitForTransaction(res.transaction_hash);
@@ -599,8 +607,7 @@ describe('Limited Release functionality', function () {
 
     // Approve ETH
     const price = BigInt(Asteroid.getSurfaceArea(249322)) * lotPrice + basePrice;
-    const ether = new Contract(contracts.abi('Ether'), ETHER_ADDRESS, provider);
-    ether.connect(player2);
+    const ether = new Contract({ abi: contracts.abi('Ether'), address: ETHER_ADDRESS, providerOrAccount: player2 });
     const call = ether.populate('approve', [ dispatcher.address, uint256.bnToUint256(price) ]);
     res = await ether.approve(call.calldata);
     await player2.waitForTransaction(res.transaction_hash);
@@ -674,8 +681,7 @@ describe('Limited Release functionality', function () {
     const basePrice = 30000000000000000n;
     const lotPrice = 1250000000000000n;
     const price = BigInt(Asteroid.getSurfaceArea(249323)) * lotPrice + basePrice;
-    const ether = new Contract(contracts.abi('Ether'), ETHER_ADDRESS, provider);
-    ether.connect(player2);
+    const ether = new Contract({ abi: contracts.abi('Ether'), address: ETHER_ADDRESS, providerOrAccount: player2 });
     const call = ether.populate('approve', [ dispatcher.address, uint256.bnToUint256(price) ]);
     res = await ether.approve(call.calldata);
     await player2.waitForTransaction(res.transaction_hash);
@@ -696,8 +702,7 @@ describe('Limited Release functionality', function () {
     await assertReverts(dispatcher.compileAndInvoke('run_system', {
       name: shortString.encodeShortString('ClaimPrepareForLaunchReward'),
       calldata: [
-        Entity.IDS.ASTEROID, 249322, // asteroid entity
-        Entity.IDS.CREW, 3 // caller crew entity
+        Entity.IDS.ASTEROID, 249322 // asteroid entity
       ]
     }), 'E6015: reward not found');
   });
@@ -707,8 +712,7 @@ describe('Limited Release functionality', function () {
     await dispatcher.compileAndInvoke('run_system', {
       name: shortString.encodeShortString('ClaimPrepareForLaunchReward'),
       calldata: [
-        Entity.IDS.ASTEROID, 102406, // asteroid entity
-        Entity.IDS.CREW, 3 // caller crew entity
+        Entity.IDS.ASTEROID, 102406 // asteroid entity
       ]
     });
 

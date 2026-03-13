@@ -1,6 +1,7 @@
 import { exec } from 'node:child_process';
 import util from 'node:util';
 import ibis from '@influenceth/ibis';
+import Account from '@influenceth/ibis/src/lib/Account.js';
 import yargs from 'yargs'
 import { hideBin } from 'yargs/helpers'
 
@@ -13,7 +14,6 @@ import combineAbis from './commands/combineAbis.js';
 import seedAsteroids from './commands/seedAsteroids.js';
 import seedCrewmates from './commands/seedCrewmates.js';
 import seedOrders from './commands/seedOrders.js';
-import fixFeatures from './commands/fixFeatures.js';
 import updateConfigs from './commands/updateConfigs.js';
 import updateConstant from './commands/updateConstant.js';
 import cancelOrders from './commands/cancelOrders.js';
@@ -30,20 +30,51 @@ const buildHelper = async () => {
   }
 };
 
-// Resolve account from name or use predefined account
+const DEFAULT_TX_RETRY_INTERVAL_MS = 500;
+
+const applyFastWaitDefaults = (account) => {
+  const originalWaitForTransaction = account.waitForTransaction.bind(account);
+  account.waitForTransaction = (txHash, options = {}) => {
+    return originalWaitForTransaction(txHash, {
+      retryInterval: DEFAULT_TX_RETRY_INTERVAL_MS,
+      ...options
+    });
+  };
+  return account;
+};
+
+const getDevnetPredeployedAccount = async (provider, index = 0) => {
+  const rpcUrl = `${provider.baseUrl}/rpc`;
+  const body = { jsonrpc: '2.0', id: 1, method: 'devnet_getPredeployedAccounts', params: [] };
+  const response = await fetch(rpcUrl, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const payload = await response.json();
+  const accountInfo = payload?.result?.[index];
+
+  if (!accountInfo?.address || !accountInfo?.private_key) {
+    throw new Error('Unable to resolve devnet predeployed account #0 via devnet_getPredeployedAccounts');
+  }
+
+  return new Account(provider, accountInfo.address, accountInfo.private_key, 1);
+};
+
+// Resolve account from name or use default devnet predeployed account
 const getAccount = async (accountName, networkName) => {
   let account;
-  const { accounts } = ibis(networkName);
+  const { accounts, provider } = ibis(networkName);
 
-  // Default to predefined account if none is provided
+  // Default to predeployed account #0 on devnet
   if (!accountName && networkName === 'devnet') {
-    account = await accounts.predeployedAccount(0);
+    account = await getDevnetPredeployedAccount(provider, 0);
   } else {
     account = await accounts.account(accountName);
     if (!account) throw new Error(`Account ${accountName} not found`);
   }
 
-  return account;
+  return applyFastWaitDefaults(account);
 }
 
 export const update = async ({ name, network, account, skipBuild, maxFee }) => {
@@ -164,18 +195,6 @@ yargs(hideBin(process.argv))
       y.option('network', { describe: 'Network config ', alias: 'n', demand: true });
     },
     handler: combineAbis
-  })
-  .command({
-    command: 'fixFeatures',
-    builder: (y) => {
-      y.version(false);
-      y.option('network', { describe: 'Network config ', alias: 'n', demand: true });
-      y.option('account', { describe: 'Account to use', alias: 'a' })
-    },
-    handler: async ({ network, account }) => {
-      const resolvedAccount = await getAccount(account, network);
-      await fixFeatures(network, resolvedAccount);
-    }
   })
   .command({
     command: 'updateConfigs',

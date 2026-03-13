@@ -62,6 +62,7 @@ mod AcceptDelivery {
         let (origin_ast, origin_lot) = origin.to_position();
         let (dest_ast, dest_lot) = destination.to_position();
         assert(crew_details.asteroid_id() == dest_ast, errors::DIFFERENT_ASTEROIDS);
+        assert(origin_ast == dest_ast, errors::DIFFERENT_ASTEROIDS);
         assert(crew_details.lot_id() != 0, errors::IN_ORBIT);
 
         // If a private sale is present, ensure it's paid
