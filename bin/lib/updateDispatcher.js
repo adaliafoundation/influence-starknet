@@ -16,8 +16,15 @@ const updateDispatcher = async (networkName, account, options = {}) => {
     // If no classHash, declare and deploy contract
     const res = await contracts.declareAndDeploy(
       'Dispatcher',
-      { account, constructorArgs: parseConstructorArgs('Dispatcher', account, networkName) }
+      { account, constructorArgs: parseConstructorArgs('Dispatcher', account, networkName) },
+      options
     );
+    if (res.declare?.transaction_hash) {
+      await account.waitForTransaction(res.declare.transaction_hash);
+    }
+    if (res.deploy?.transaction_hash && res.deploy.transaction_hash !== res.declare?.transaction_hash) {
+      await account.waitForTransaction(res.deploy.transaction_hash);
+    }
 
     classHash = res.declare.class_hash;
     contractAddress = res.deploy.address;
@@ -32,7 +39,7 @@ const updateDispatcher = async (networkName, account, options = {}) => {
 
   // If the new classHash isn't the same as the old, upgrade the contract
   if (classHash !== computedHash) {
-    let res = await contracts.declare('Dispatcher', { account });
+    let res = await contracts.declare('Dispatcher', { account }, options);
     await account.waitForTransaction(res.transaction_hash);
     console.log(`Contract ${'Dispatcher'} declared with hash: ${computedHash}`);
 

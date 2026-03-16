@@ -33,7 +33,9 @@ const updateSystem = async (systemName, networkName, account, options = {}) => {
   if (needsDeclare) {
     try {
       const res = await contracts.declare(systemName, { account }, options);
-      await account.waitForTransaction(res.transaction_hash);
+      if (res?.transaction_hash) {
+        await account.waitForTransaction(res.transaction_hash);
+      }
       console.log(`System ${systemName} declared with hash: ${computedClassHash}`);
       needsRegister = true;
     } catch (e) {

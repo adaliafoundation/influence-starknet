@@ -31,12 +31,14 @@ const buildHelper = async () => {
 };
 
 const DEFAULT_TX_RETRY_INTERVAL_MS = 500;
+const DEFAULT_TX_LIFECYCLE_RETRIES = 20;
 
 const applyFastWaitDefaults = (account) => {
   const originalWaitForTransaction = account.waitForTransaction.bind(account);
   account.waitForTransaction = (txHash, options = {}) => {
     return originalWaitForTransaction(txHash, {
       retryInterval: DEFAULT_TX_RETRY_INTERVAL_MS,
+      lifeCycleRetries: DEFAULT_TX_LIFECYCLE_RETRIES,
       ...options
     });
   };
@@ -77,13 +79,20 @@ const getAccount = async (accountName, networkName) => {
   return applyFastWaitDefaults(account);
 }
 
-export const update = async ({ name, network, account, skipBuild, maxFee }) => {
+const buildTxOptions = ({ maxFee, tip }) => {
+  const options = {};
+  if (maxFee != null) options.maxFee = BigInt(maxFee);
+  if (tip != null) options.tip = BigInt(tip);
+  return options;
+};
+
+export const update = async ({ name, network, account, skipBuild, maxFee, tip }) => {
   if (!skipBuild) await buildHelper();
 
   try {
     const resolvedAccount = await getAccount(account, network);
     const config = new ContractConfig(network);
-    const options = maxFee ? { maxFee: BigInt(maxFee) } : {};
+    const options = buildTxOptions({ maxFee, tip });
 
     if (config.isDispatcher(name)) await updateDispatcher(network, resolvedAccount, options);
     if (config.isSystem(name)) await updateSystem(name, network, resolvedAccount, options);
@@ -93,16 +102,16 @@ export const update = async ({ name, network, account, skipBuild, maxFee }) => {
   }
 };
 
-export const updateAll = async ({ network, account, skipBuild, maxFee }) => {
+export const updateAll = async ({ network, account, skipBuild, maxFee, tip }) => {
   if (!skipBuild) await buildHelper();
 
   try {
     const resolvedAccount = await getAccount(account, network);
-    await updateDispatcher(network, resolvedAccount);
+    const options = buildTxOptions({ maxFee, tip });
+    await updateDispatcher(network, resolvedAccount, options);
     const config = new ContractConfig(network);
     const contracts = config.getContracts();
     const systems = config.getSystems();
-    const options = maxFee ? { maxFee: BigInt(maxFee) } : {};
 
     for (const name of contracts) {
       await updateContract(name, network, resolvedAccount, options);
@@ -128,6 +137,7 @@ yargs(hideBin(process.argv))
       y.option('account', { describe: 'Account to use', alias: 'a' });
       y.option('skipBuild', { describe: 'Skip building contracts before updating', alias: 's', type: 'boolean' });
       y.option('maxFee', { describe: 'Max fee for transactions', alias: 'm' });
+      y.option('tip', { describe: 'Tip for v3 transactions', alias: 't' });
     },
     handler: update
   })
@@ -141,6 +151,7 @@ yargs(hideBin(process.argv))
       y.option('account', { describe: 'Account to use', alias: 'a' });
       y.option('skipBuild', { describe: 'Skip building contracts before updating', alias: 's', type: 'boolean' });
       y.option('maxFee', { describe: 'Max fee for transactions', alias: 'm' });
+      y.option('tip', { describe: 'Tip for v3 transactions', alias: 't' });
     },
     handler: updateAll
   })

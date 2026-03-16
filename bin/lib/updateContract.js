@@ -16,8 +16,15 @@ const updateContract = async (contractName, networkName, account, options = {}) 
     // If no classHash, declare and deploy contract
     const res = await contracts.declareAndDeploy(
       contractName,
-      { account, constructorArgs: parseConstructorArgs(contractName, account, networkName) }
+      { account, constructorArgs: parseConstructorArgs(contractName, account, networkName) },
+      options
     );
+    if (res.declare?.transaction_hash) {
+      await account.waitForTransaction(res.declare.transaction_hash);
+    }
+    if (res.deploy?.transaction_hash && res.deploy.transaction_hash !== res.declare?.transaction_hash) {
+      await account.waitForTransaction(res.deploy.transaction_hash);
+    }
 
     classHash = res.declare.class_hash;
     contractAddress = res.deploy.address;
@@ -33,7 +40,7 @@ const updateContract = async (contractName, networkName, account, options = {}) 
   // If the new classHash isn't the same as the old, upgrade the contract
   if (classHash !== computedHash) {
     try {
-      const res = await contracts.declare(contractName, { account });
+      const res = await contracts.declare(contractName, { account }, options);
       await account.waitForTransaction(res.transaction_hash);
       console.log(`Contract ${contractName} declared with hash: ${computedHash}`);
     } catch (e) {
@@ -56,7 +63,7 @@ const updateContract = async (contractName, networkName, account, options = {}) 
 
   if (registeredAddress !== BigInt(contract.address)) {
     call = dispatcher.populate('register_contract', [ shortString.encodeShortString(contractName), contract.address ]);
-    const res = await dispatcher.register_contract(call.calldata);
+    const res = await dispatcher.register_contract(call.calldata, options);
     await account.waitForTransaction(res.transaction_hash);
     console.log(`Contract ${contractName} registered with Dispatcher as: ${contractAddress}`);
   } else {
