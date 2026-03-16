@@ -7,19 +7,61 @@ Commercial use is not permitted without a separate license from Unstoppable Game
 For the avoidance of doubt:
 The licensor considers non-commercial use under this license to include deployments or uses that collect funds solely to recover the reasonable costs of operating, maintaining, or administering the software, provided that such use is not primarily intended for or directed toward commercial advantage or monetary compensation, and that no profit is distributed to operators, contributors, or participants.
 
+## Environment prerequisites
+
+This project uses historical version 2.1.1 of [cairo](https://github.com/starkware-libs/cairo/tree/v2.1.1),
+0.6.2 of [scarb](https://github.com/software-mansion/scarb/tree/release/v0.6.2) and 1.76.0 of Rust. These cairo and
+scarb versions are no longer readily available using the https://sh.starkup.sh path. We need to build them using Rust.
+
+Rust is easiest obtained by installing [rustup](https://rustup.rs/). This tool allows you to obtain complete toolchains
+for specific versions of Rust. After install, invoke the following commands to set your local environment to use version
+1.76.0 of Rust:
+
+    rustup toolchain install 1.76.0
+    rustup override set 1.76.0
+
+To build cairo:
+
+    git clone https://github.com/starkware-libs/cairo.git
+    cd cairo
+    git checkout v2.1.1
+    cargo build --all --release
+
+To build scarb:
+
+    git clone https://github.com/software-mansion/scarb.git
+    cd scarb
+    git checkout v0.6.2
+    cargo build --all --release
+
+You need to set `$PATH_TO_CAIRO/target/release` and `$PATH_TO_SCARB/target/release` directories into your `PATH`
+environment variable to be able to easily access the cairo and scarb CLI commands.
+
+Environment should be now set up for proceeding with building the project and running test-contracts.
+
 ## Setup
-- `npm install` (will run submodule update automatically)
+
+- `npm install` (will run submodule update automatically to obtain the dependency library `cubit`)
 - Must setup `.env` to include `SIERRA_COMPILER_PATH`, currently dependent on v2.1.1
 - Relies on `starknet-devnet` version 0.7.2 to be installed in local `pyenv` for integration testing
 - Unzip `devnet.dump.zip` in `./test/seeds` to `./test/seeds/devnet.dump` for integration testing
 
 ## Build
+
+This step depends on the cairo and scarb builds to be accessible in your `PATH`.
+
 - `npm run build`
 
-## Testing
+## Contract unit tests
+
+This step depends on the `cairo-test` command from the cairo build to be accessible in your `PATH`.
+
+- `npm run test-contracts`
+
+## Integration testing
+
 - Ensure that Docker Desktop is installed and started
 - Build contracts (see above)
-- `npm run test-contracts` (cairo tests)
 - `npm run test-integration` (integration tests with Ibis)
 
 ### Integration Test Setup
