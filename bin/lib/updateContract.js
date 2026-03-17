@@ -1,44 +1,24 @@
 import ibis from '@influenceth/ibis';
 import { shortString, hash } from 'starknet';
 
-import { parseConstructorArgs } from './utils.js';
+import { declareIfNeeded, loadOrDeployContract } from './utils.js';
 
 const updateContract = async (contractName, networkName, account, options = {}) => {
-  let classHash, contractAddress, contract;
   const { contracts } = ibis(networkName);
-
-  try {
-    classHash = contracts.classHash(contractName);
-    contract = contracts.deployed(contractName);
-    contractAddress = contract.address;
-    console.log(`${contractName} already deployed`);
-  } catch (e) {
-    // If no classHash, declare and deploy contract
-    const res = await contracts.declareAndDeploy(
-      contractName,
-      { account, constructorArgs: parseConstructorArgs(contractName, account, networkName) }
-    );
-
-    classHash = res.declare.class_hash;
-    contractAddress = res.deploy.address;
-    contract = contracts.deployed(contractName);
-
-    console.log(`Contract ${contractName} declared with hash: ${classHash}`);
-    console.log(`Contract ${contractName} deployed at: ${contractAddress}`);
-  }
+  const { classHash, contractAddress, contract } = await loadOrDeployContract({
+    contracts,
+    contractName,
+    networkName,
+    account,
+    options
+  });
 
   const sierra = contracts.sierra(contractName);
   const computedHash = hash.computeContractClassHash(sierra);
 
   // If the new classHash isn't the same as the old, upgrade the contract
   if (classHash !== computedHash) {
-    try {
-      const res = await contracts.declare(contractName, { account });
-      await account.waitForTransaction(res.transaction_hash);
-      console.log(`Contract ${contractName} declared with hash: ${computedHash}`);
-    } catch (e) {
-      console.log(`Contract ${contractName} already declared with hash: ${computedHash}`);
-    }
+    await declareIfNeeded({ contracts, contractName, account, options, classHash: computedHash });
 
     contract.connect(account);
     const call = contract.populate('upgrade', [ computedHash ]);
@@ -56,7 +36,7 @@ const updateContract = async (contractName, networkName, account, options = {}) 
 
   if (registeredAddress !== BigInt(contract.address)) {
     call = dispatcher.populate('register_contract', [ shortString.encodeShortString(contractName), contract.address ]);
-    const res = await dispatcher.register_contract(call.calldata);
+    const res = await dispatcher.register_contract(call.calldata, options);
     await account.waitForTransaction(res.transaction_hash);
     console.log(`Contract ${contractName} registered with Dispatcher as: ${contractAddress}`);
   } else {

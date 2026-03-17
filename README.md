@@ -9,6 +9,9 @@ The licensor considers non-commercial use under this license to include deployme
 
 ## Setup
 - `npm install` (will run submodule update automatically)
+- Must setup `.env` to include `SIERRA_COMPILER_PATH`, currently dependent on v2.1.1
+- Relies on `starknet-devnet` version 0.7.2 to be installed in local `pyenv` for integration testing
+- Unzip `devnet.dump.zip` in `./test/seeds` to `./test/seeds/devnet.dump` for integration testing
 
 ## Build
 - `npm run build`
@@ -22,11 +25,11 @@ The licensor considers non-commercial use under this license to include deployme
 ### Integration Test Setup
 - After changes to contracts, run `npm run build` to build the contracts
 - Clear the `./test/seeds` directory
-- Start devnet with `starknet-devnet --timeout 5000 --sierra-compiler-path /path/to/starknet-sierra-compile`
+- Start devnet with `starknet-devnet --timeout 5000 --seed 12345 --initial-balance 10000000000000000000000000 --dump-path ./test/seeds/devnet.dump --dump-on exit`
 - Run `npm run manager updateAll -- --network devnet`
-- When complete, run `curl -X POST http://127.0.0.1:5050/dump -d '{ "path": "/path/to/test/seeds/devnet.dump" }' -H "Content-Type: application/json"`
+- Run `npm run manager updateConfigs -- --network devnet --type all`
+- When complete, exit with `CTRL+C` to generate the `devnet.dump` file in `./test/seeds`
 - Move `devnet.ibis.contracts.json` from `./cache` to `./test/seeds`
-- Shutdown devnet
 
 ## Deploying
 

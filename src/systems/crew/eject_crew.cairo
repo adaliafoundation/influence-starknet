@@ -66,7 +66,12 @@ mod EjectCrew {
 
         // Adjust station population
         let (station, mut station_data) = ejected_crew_details.station();
-        station_data.population -= ejected_crew_data.roster.len().into();
+        let moved_crewmates: u64 = ejected_crew_data.roster.len().into();
+        if station_data.population >= moved_crewmates {
+            station_data.population -= moved_crewmates;
+        } else {
+            station_data.population = 0;
+        }
         components::set::<Station>(station.path(), station_data);
 
         let mut finish_time = 0;
@@ -224,6 +229,33 @@ mod tests {
         let habitat = mocks::public_habitat(crew, 1);
         let mut station_data = components::get::<Station>(habitat.path()).unwrap();
         station_data.population += 1; // 1 crew of 1
+        components::set::<Station>(habitat.path(), station_data);
+
+        components::set::<Location>(crew.path(), LocationTrait::new(habitat));
+        components::set::<Location>(habitat.path(), LocationTrait::new(EntityTrait::from_position(asteroid.id, 25)));
+
+        let mut state = EjectCrew::contract_state_for_testing();
+        EjectCrew::run(ref state, crew, crew, mocks::context('PLAYER'));
+
+        assert(components::get::<Location>(crew.path()).unwrap().location == asteroid, 'wrong location');
+        assert(components::get::<Ship>(crew.path()).unwrap().status == ship_statuses::AVAILABLE, 'wrong ship status');
+    }
+
+    #[test]
+    #[available_gas(18000000)]
+    fn test_eject_habitat_with_underreported_population() {
+        helpers::init();
+        mocks::constants();
+        starknet::testing::set_block_timestamp(1000);
+        add_modifiers();
+
+        let asteroid = influence::test::mocks::asteroid();
+        let crew = influence::test::mocks::delegated_crew(1, 'PLAYER');
+        let habitat = mocks::public_habitat(crew, 1);
+
+        // Keep population at 0 to simulate stale state
+        let mut station_data = components::get::<Station>(habitat.path()).unwrap();
+        station_data.population = 0;
         components::set::<Station>(habitat.path(), station_data);
 
         components::set::<Location>(crew.path(), LocationTrait::new(habitat));

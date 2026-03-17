@@ -113,7 +113,12 @@ mod StationCrew {
             // In a ship or station, update the station info
             let (_origin_station, mut origin_station_data) = crew_details.station();
             origin_station = _origin_station;
-            origin_station_data.population -= crew_data.roster.len().into();
+            let moved_crewmates: u64 = crew_data.roster.len().into();
+            if origin_station_data.population >= moved_crewmates {
+                origin_station_data.population -= moved_crewmates;
+            } else {
+                origin_station_data.population = 0;
+            }
             components::set::<Station>(origin_station.path(), origin_station_data);
         }
 
@@ -198,6 +203,55 @@ mod tests {
         StationCrew::run(ref state, second_station, crew, mocks::context('PLAYER'));
 
         // Check the data
+        let crew_location = components::get::<Location>(crew.path()).unwrap();
+        assert(crew_location.location == second_station, 'wrong station');
+        let origin_data = components::get::<Station>(station.path()).unwrap();
+        assert(origin_data.population == 0, 'wrong origin population');
+        let dest_data = components::get::<Station>(second_station.path()).unwrap();
+        assert(dest_data.population == 1, 'wrong destination population');
+    }
+
+    #[test]
+    #[available_gas(20000000)]
+    fn test_stationing_with_underreported_origin_population() {
+        helpers::init();
+        mocks::constants();
+        starknet::testing::set_block_timestamp(100);
+
+        // Add configs
+        mocks::modifier_type(modifier_types::HOPPER_TRANSPORT_TIME);
+        mocks::modifier_type(modifier_types::FREE_TRANSPORT_DISTANCE);
+
+        let asteroid = influence::test::mocks::asteroid();
+        let crew = influence::test::mocks::delegated_crew(1, 'PLAYER');
+        let station = influence::test::mocks::public_habitat(crew, 37);
+        components::set::<Location>(station.path(), LocationTrait::new(EntityTrait::from_position(asteroid.id, 37)));
+        components::set::<Location>(crew.path(), LocationTrait::new(station));
+        components::set::<Ship>(crew.path(), Ship {
+            ship_type: ship_types::ESCAPE_MODULE,
+            status: ship_statuses::DISABLED,
+            ready_at: 0,
+            emergency_at: 0,
+            variant: 1,
+            transit_origin: EntityTrait::new(0, 0),
+            transit_departure: 0,
+            transit_destination: EntityTrait::new(0, 0),
+            transit_arrival: 0
+        });
+
+        // Keep origin population at 0 to simulate stale state
+        let mut station_data = components::get::<Station>(station.path()).unwrap();
+        station_data.population = 0;
+        components::set::<Station>(station.path(), station_data);
+
+        let second_station = influence::test::mocks::public_habitat(crew, 73);
+        components::set::<Location>(
+            second_station.path(), LocationTrait::new(EntityTrait::from_position(asteroid.id, 37))
+        );
+
+        let mut state = StationCrew::contract_state_for_testing();
+        StationCrew::run(ref state, second_station, crew, mocks::context('PLAYER'));
+
         let crew_location = components::get::<Location>(crew.path()).unwrap();
         assert(crew_location.location == second_station, 'wrong station');
         let origin_data = components::get::<Station>(station.path()).unwrap();

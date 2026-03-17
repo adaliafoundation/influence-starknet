@@ -19,10 +19,12 @@ mod tests {
     use array::{ArrayTrait, SpanTrait};
     use option::OptionTrait;
     use traits::Into;
+    use cubit::f64::FixedTrait;
 
-    use influence::{components, config};
+    use influence::components;
     use influence::common::inventory;
     use influence::components::{Crew, CrewTrait, Delivery, Location, LocationTrait, Inventory, InventoryTrait,
+        delivery::statuses as delivery_statuses,
         building_type::{types as buildings, BuildingType},
         modifier_type::types as modifier_types,
         product_type::types as product_types,
@@ -165,6 +167,63 @@ mod tests {
         let warehouse2_data = components::get::<Inventory>(array![warehouse2.into(), 2].span()).unwrap();
         assert(warehouse2_data.mass == 1000000, 'wrong mass');
         assert(warehouse2_data.volume == 971000, 'wrong volume');
+    }
+
+    #[test]
+    #[available_gas(35000000)]
+    #[should_panic(expected: ('E4001: different asteroids', ))]
+    fn test_accept_packaged_delivery_rejects_cross_asteroid() {
+        helpers::init();
+        mocks::constants();
+        add_modifiers();
+
+        let origin_asteroid = influence::test::mocks::adalia_prime();
+        let dest_asteroid = influence::test::mocks::asteroid();
+        let crew = influence::test::mocks::delegated_crew(1, 'PLAYER');
+
+        // Setup station and crew on destination asteroid.
+        let station = influence::test::mocks::public_habitat(crew, 1);
+        components::set::<Location>(station.path(), LocationTrait::new(EntityTrait::from_position(dest_asteroid.id, 1)));
+        components::set::<Location>(crew.path(), LocationTrait::new(station));
+
+        // Setup product.
+        mocks::product_type(product_types::WATER);
+
+        // Setup warehouses on different asteroids.
+        let origin = influence::test::mocks::public_warehouse(crew, 3);
+        components::set::<Location>(
+            origin.path(), LocationTrait::new(EntityTrait::from_position(origin_asteroid.id, 1000))
+        );
+
+        let dest = influence::test::mocks::public_warehouse(crew, 4);
+        components::set::<Location>(dest.path(), LocationTrait::new(EntityTrait::from_position(dest_asteroid.id, 1000)));
+
+        let mut products: Array<InventoryItem> = Default::default();
+        products.append(InventoryItemTrait::new(product_types::WATER, 1000));
+
+        // Simulate packaged delivery state: products removed from origin and origin space reserved.
+        let mut origin_inv = components::get::<Inventory>(array![origin.into(), 2].span()).unwrap();
+        inventory::reserve(ref origin_inv, products.span(), FixedTrait::ONE(), FixedTrait::ONE());
+        components::set::<Inventory>(array![origin.into(), 2].span(), origin_inv);
+
+        // Forge packaged delivery with origin and destination on different asteroids.
+        components::set::<Delivery>(EntityTrait::new(entities::DELIVERY, 1).path(), Delivery {
+            status: delivery_statuses::PACKAGED,
+            origin: origin,
+            origin_slot: 2,
+            dest: dest,
+            dest_slot: 2,
+            finish_time: 0,
+            contents: products.span()
+        });
+
+        let mut accept_state = AcceptDelivery::contract_state_for_testing();
+        AcceptDelivery::run(
+            ref accept_state,
+            delivery: EntityTrait::new(entities::DELIVERY, 1),
+            caller_crew: crew,
+            context: mocks::context('PLAYER')
+        );
     }
 
     #[test]
