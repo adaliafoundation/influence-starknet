@@ -1,51 +1,24 @@
 import ibis from '@influenceth/ibis';
 import { shortString, hash } from 'starknet';
 
-import { parseConstructorArgs } from './utils.js';
+import { declareIfNeeded, loadOrDeployContract } from './utils.js';
 
 const updateContract = async (contractName, networkName, account, options = {}) => {
-  let classHash, contractAddress, contract;
   const { contracts } = ibis(networkName);
-
-  try {
-    classHash = contracts.classHash(contractName);
-    contract = contracts.deployed(contractName);
-    contractAddress = contract.address;
-    console.log(`${contractName} already deployed`);
-  } catch (e) {
-    // If no classHash, declare and deploy contract
-    const res = await contracts.declareAndDeploy(
-      contractName,
-      { account, constructorArgs: parseConstructorArgs(contractName, account, networkName) },
-      options
-    );
-    if (res.declare?.transaction_hash) {
-      await account.waitForTransaction(res.declare.transaction_hash);
-    }
-    if (res.deploy?.transaction_hash && res.deploy.transaction_hash !== res.declare?.transaction_hash) {
-      await account.waitForTransaction(res.deploy.transaction_hash);
-    }
-
-    classHash = res.declare.class_hash;
-    contractAddress = res.deploy.address;
-    contract = contracts.deployed(contractName);
-
-    console.log(`Contract ${contractName} declared with hash: ${classHash}`);
-    console.log(`Contract ${contractName} deployed at: ${contractAddress}`);
-  }
+  const { classHash, contractAddress, contract } = await loadOrDeployContract({
+    contracts,
+    contractName,
+    networkName,
+    account,
+    options
+  });
 
   const sierra = contracts.sierra(contractName);
   const computedHash = hash.computeContractClassHash(sierra);
 
   // If the new classHash isn't the same as the old, upgrade the contract
   if (classHash !== computedHash) {
-    try {
-      const res = await contracts.declare(contractName, { account }, options);
-      await account.waitForTransaction(res.transaction_hash);
-      console.log(`Contract ${contractName} declared with hash: ${computedHash}`);
-    } catch (e) {
-      console.log(`Contract ${contractName} already declared with hash: ${computedHash}`);
-    }
+    await declareIfNeeded({ contracts, contractName, account, options, classHash: computedHash });
 
     contract.connect(account);
     const call = contract.populate('upgrade', [ computedHash ]);
