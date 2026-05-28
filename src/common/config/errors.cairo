@@ -54,6 +54,7 @@ const EXCHANGE_TYPE_NOT_FOUND: felt252 = 'E1043: exchange type not found';
 const EXTRACTOR_TYPE_NOT_FOUND: felt252 = 'E1044: extractor type not found';
 const STATION_TYPE_NOT_FOUND: felt252 = 'E1045: station type not found';
 const SHIP_VARIANT_TYPE_NOT_FOUND: felt252 = 'E1046: ship variant not found';
+const PREPAID_AUCTION_NOT_FOUND: felt252 = 'E1047: prepaid auc not found';
 
 // Payments
 const INSUFFICIENT_FUNDS: felt252 = 'E3001: insufficient funds';
@@ -129,3 +130,5 @@ const TRANSIT_POSITION_INVALID: felt252 = 'E6051: transit position invalid';
 const TOO_MANY_ALLOWED_PRODUCTS: felt252 = 'E6052: too many products';
 const AGREEMENT_EXPIRED: felt252 = 'E6053: agreement expired';
 const NO_PRODUCTS: felt252 = 'E6054: no products';
+const AUCTION_INACTIVE: felt252 = 'E6055: auction inactive';
+const AUCTION_ACTIVE: felt252 = 'E6056: auction active';

@@ -127,6 +127,13 @@ mod ReadComponent {
         } else if name == 'PrepaidAgreement' {
             let comp_data = components::get::<components::PrepaidAgreement>(path).expect(errors::PREPAID_AGREEMENT_NOT_FOUND);
             Serde::<components::PrepaidAgreement>::serialize(@comp_data, ref res);
+        } else if name == 'PrepaidAgreementAuction' {
+            let comp_data = components::get::<components::PrepaidAgreementAuction>(path).expect(errors::PREPAID_AUCTION_NOT_FOUND);
+            Serde::<components::PrepaidAgreementAuction>::serialize(@comp_data, ref res);
+        } else if name == 'PrepaidAgreementAuctionSettings' {
+            let comp_data = components::get::<components::PrepaidAgreementAuctionSettings>(path)
+                .expect(errors::PREPAID_AUCTION_NOT_FOUND);
+            Serde::<components::PrepaidAgreementAuctionSettings>::serialize(@comp_data, ref res);
         } else if name == 'WhitelistAgreement' {
             let comp_data = components::get::<components::WhitelistAgreement>(path).expect(errors::WHITELIST_AGREEMENT_NOT_FOUND);
             Serde::<components::WhitelistAgreement>::serialize(@comp_data, ref res);

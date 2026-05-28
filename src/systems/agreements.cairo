@@ -1,10 +1,13 @@
 mod accept_contract;
 mod accept_prepaid;
 mod accept_prepaid_merkle;
+mod cancel_prepaid_auction;
 mod cancel_prepaid;
+mod configure_prepaid_auction;
 mod extend_prepaid;
 mod remove_from_whitelist;
 mod remove_account_from_whitelist;
+mod start_prepaid_auction;
 mod transfer_prepaid;
 mod whitelist;
 mod whitelist_account;
@@ -14,10 +17,15 @@ use remove_from_whitelist::RemoveFromWhitelist;
 
 mod helpers {
     use array::{ArrayTrait, SpanTrait};
-    use traits::Into;
+    use option::OptionTrait;
+    use traits::{Into, TryInto};
 
+    use influence::components;
+    use influence::components::{PrepaidAgreementAuctionSettings, PrepaidAgreementAuctionSettingsTrait};
     use influence::config::{entities, permissions};
-    use influence::types::Entity;
+    use influence::types::{Entity, EntityTrait};
+
+    const AUCTION_STEPS: u64 = 168;
 
     fn agreement_path(target: Entity, permission: u64, permitted: felt252) -> Span<felt252> {
         if target.label == entities::ASTEROID {
@@ -56,6 +64,52 @@ mod helpers {
         path.append(permission.into());
         path.append(permitted);
         return path.span();
+    }
+
+    fn use_lot_path(lot: Entity) -> Span<felt252> {
+        let mut path: Array<felt252> = Default::default();
+        path.append('UseLot');
+        path.append(lot.into());
+        return path.span();
+    }
+
+    fn lot_use_path(lot: Entity) -> Span<felt252> {
+        let mut path: Array<felt252> = Default::default();
+        path.append('LotUse');
+        path.append(lot.into());
+        return path.span();
+    }
+
+    fn auction_settings(asteroid: Entity) -> PrepaidAgreementAuctionSettings {
+        match components::get::<PrepaidAgreementAuctionSettings>(asteroid.path()) {
+            Option::Some(settings) => settings,
+            Option::None(_) => PrepaidAgreementAuctionSettingsTrait::defaults()
+        }
+    }
+
+    fn auction_price(settings: PrepaidAgreementAuctionSettings, elapsed: u64) -> u64 {
+        if elapsed < settings.initial_period {
+            return settings.max_price;
+        }
+
+        let descending_elapsed = elapsed - settings.initial_period;
+        if descending_elapsed >= settings.descending_period {
+            return settings.min_price;
+        }
+
+        let step = (descending_elapsed * AUCTION_STEPS) / settings.descending_period;
+        if step >= AUCTION_STEPS {
+            return settings.min_price;
+        }
+
+        if step == 0 {
+            return settings.max_price;
+        }
+
+        let steps = AUCTION_STEPS - 1;
+        let delta = settings.max_price - settings.min_price;
+        let reduction = (delta / steps) * step + ((delta % steps) * step) / steps;
+        return settings.max_price - reduction;
     }
 }
 

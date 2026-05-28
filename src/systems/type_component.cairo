@@ -231,6 +231,21 @@ mod TypeComponent {
     }
 
     #[external(v0)]
+    fn getPrepaidAgreementAuction(self: @ContractState, path: Span<felt252>) -> components::PrepaidAgreementAuction {
+        let comp_data = components::get::<components::PrepaidAgreementAuction>(path).expect(errors::PREPAID_AUCTION_NOT_FOUND);
+        return comp_data;
+    }
+
+    #[external(v0)]
+    fn getPrepaidAgreementAuctionSettings(
+        self: @ContractState, path: Span<felt252>
+    ) -> components::PrepaidAgreementAuctionSettings {
+        let comp_data = components::get::<components::PrepaidAgreementAuctionSettings>(path)
+            .expect(errors::PREPAID_AUCTION_NOT_FOUND);
+        return comp_data;
+    }
+
+    #[external(v0)]
     fn getWhitelistAgreement(self: @ContractState, path: Span<felt252>) -> components::WhitelistAgreement {
         let comp_data = components::get::<components::WhitelistAgreement>(path).expect(errors::WHITELIST_AGREEMENT_NOT_FOUND);
         return comp_data;

@@ -1,17 +1,22 @@
 #[starknet::contract]
 mod AcceptPrepaidMerkleAgreement {
     use array::{Array, ArrayTrait};
+    use cmp::min;
     use option::OptionTrait;
     use starknet::{contract_address_const, ContractAddress};
     use traits::{Into, TryInto};
 
     use influence::{components, config, contracts};
     use influence::common::{crew::CrewDetailsTrait, math::RoundedDivTrait};
-    use influence::components::{Crew, CrewTrait, Control, ControlTrait, PrepaidMerklePolicy, PrepaidMerklePolicyTrait,
-        PrepaidAgreement, PrepaidAgreementTrait, Unique};
+    use influence::components::{Building, Crew, CrewTrait, Control, ControlTrait, PrepaidMerklePolicy,
+        PrepaidMerklePolicyTrait, PrepaidAgreement, PrepaidAgreementTrait, PrepaidAgreementAuction,
+        PrepaidAgreementAuctionTrait, Unique};
+    use influence::components::agreements::prepaid_auction::modes as auction_modes;
     use influence::config::{entities, errors, permissions};
     use influence::contracts::sway::{ISwayDispatcher, ISwayDispatcherTrait};
-    use influence::systems::agreements::helpers::agreement_path;
+    use influence::systems::agreements::helpers::{
+        agreement_path, auction_price, auction_settings, lot_use_path, use_lot_path
+    };
     use influence::systems::policies::helpers::policy_path;
     use influence::types::{ArrayHashTrait, Context, Entity, EntityTrait, MerkleTree, MerkleTreeTrait};
 
@@ -66,35 +71,113 @@ mod AcceptPrepaidMerkleAgreement {
             controller_crew = components::get::<Control>(asteroid.path()).expect(errors::CONTROL_NOT_FOUND).controller;
 
             // Check that the lot is not already used by the asteroid controller
-            let mut lot_use_path: Array<felt252> = Default::default();
-            lot_use_path.append('LotUse');
-            lot_use_path.append(target.into());
+            let mut has_building = false;
+            let mut building_controller = EntityTrait::new(entities::CREW, 0);
 
-            match components::get::<Unique>(lot_use_path.span()) {
+            match components::get::<Unique>(lot_use_path(target)) {
                 Option::Some(unique_data) => {
-                    let lot_use = unique_data.unique.try_into().unwrap();
-                    assert(!controller_crew.controls(lot_use), 'lot controlled by asteroid');
+                    let lot_use: Entity = unique_data.unique.try_into().unwrap();
+                    has_building = lot_use.label == entities::BUILDING;
+                    if has_building {
+                        components::get::<Building>(lot_use.path()).expect(errors::BUILDING_NOT_FOUND);
+                        building_controller = components::get::<Control>(lot_use.path())
+                            .expect(errors::CONTROL_NOT_FOUND).controller;
+                        assert(!controller_crew.controls(lot_use), 'lot controlled by asteroid');
+                    }
                 },
                 Option::None(_) => ()
             };
 
             // Ensure use lot agreements are unique / you can't lease over the top of someone else's lease
-            let mut unique_path: Array<felt252> = Default::default();
-            unique_path.append('UseLot');
-            unique_path.append(target.into());
+            let mut unique = EntityTrait::new(entities::CREW, 0);
+            let mut requires_auction = false;
+            let mut current_data = PrepaidAgreementTrait::new(0, 0, 0, 0, 0);
 
-            match components::get::<Unique>(unique_path.span()) {
+            match components::get::<Unique>(use_lot_path(target)) {
                 Option::Some(unique_data) => {
-                    assert(
-                        !unique_data.unique.try_into().unwrap().can(target, permissions::USE_LOT),
-                        'lot already leased'
-                    );
+                    unique = unique_data.unique.try_into().unwrap();
+                    assert(unique == permitted || !unique.can(target, permissions::USE_LOT), 'lot already leased');
+
+                    if unique != permitted && has_building && building_controller != permitted {
+                        match components::get::<PrepaidAgreement>(agreement_path(target, permission, unique.into())) {
+                            Option::Some(data) => {
+                                current_data = data;
+                                requires_auction = true;
+                            },
+                            Option::None(_) => ()
+                        };
+                    }
                 },
                 Option::None(_) => ()
             };
 
+            if requires_auction {
+                let settings = auction_settings(asteroid);
+                let mut elapsed = context.now - current_data.end_time;
+
+                if settings.mode == auction_modes::MANUAL {
+                    let auction_data = components::get::<PrepaidAgreementAuction>(target.path())
+                        .expect(errors::PREPAID_AUCTION_NOT_FOUND);
+                    elapsed = context.now - auction_data.start_time;
+                    components::set::<PrepaidAgreementAuction>(
+                        target.path(), PrepaidAgreementAuctionTrait::inactive()
+                    );
+                }
+
+                let auction_amount = auction_price(settings, elapsed);
+                let lease_lapse = ((context.now - current_data.end_time) * current_data.rate).div_ceil(3600);
+                let to_controller = min(auction_amount, lease_lapse);
+                let to_building_controller = auction_amount - to_controller;
+
+                if to_controller > 0 {
+                    let mut memo: Array<felt252> = Default::default();
+                    memo.append(target.into());
+                    memo.append(permission.into());
+                    memo.append(unique.into());
+                    memo.append('auction_controller'.into());
+
+                    let delegated_to = components::get::<Crew>(controller_crew.path())
+                        .expect(errors::CREW_NOT_FOUND).delegated_to;
+                    ISwayDispatcher { contract_address: contracts::get('Sway') }.confirm_receipt(
+                        context.caller, delegated_to, to_controller.into(), memo.hash()
+                    );
+                }
+
+                if to_building_controller > 0 {
+                    let mut memo: Array<felt252> = Default::default();
+                    memo.append(target.into());
+                    memo.append(permission.into());
+                    memo.append(unique.into());
+                    memo.append('auction_building'.into());
+
+                    let delegated_to = components::get::<Crew>(building_controller.path())
+                        .expect(errors::CREW_NOT_FOUND).delegated_to;
+                    ISwayDispatcher { contract_address: contracts::get('Sway') }.confirm_receipt(
+                        context.caller, delegated_to, to_building_controller.into(), memo.hash()
+                    );
+                }
+
+                match components::get::<PrepaidAgreementAuction>(target.path()) {
+                    Option::Some(_) => {
+                        components::set::<PrepaidAgreementAuction>(
+                            target.path(), PrepaidAgreementAuctionTrait::inactive()
+                        );
+                    },
+                    Option::None(_) => ()
+                };
+            } else if has_building && (unique == permitted || building_controller == permitted) {
+                match components::get::<PrepaidAgreementAuction>(target.path()) {
+                    Option::Some(_) => {
+                        components::set::<PrepaidAgreementAuction>(
+                            target.path(), PrepaidAgreementAuctionTrait::inactive()
+                        );
+                    },
+                    Option::None(_) => ()
+                };
+            }
+
             // Update unique with new lease permitted crew
-            components::set::<Unique>(unique_path.span(), Unique { unique: permitted.into() });
+            components::set::<Unique>(use_lot_path(target), Unique { unique: permitted.into() });
         } else {
             policy_path = policy_path(target, permission);
             controller_crew = components::get::<Control>(target.path()).expect(errors::CONTROL_NOT_FOUND).controller;
@@ -261,4 +344,3 @@ mod tests {
         assert(agreement_data.end_time == 18000000, 'invalid end time');
     }
 }
-
