@@ -17,9 +17,6 @@ mod ConfigurePrepaidAgreementAuction {
         asteroid: Entity,
         mode: u64,
         initial_period: u64,
-        descending_period: u64,
-        max_price: u64,
-        min_price: u64,
         caller_crew: Entity,
         caller: ContractAddress
     }
@@ -36,35 +33,24 @@ mod ConfigurePrepaidAgreementAuction {
         asteroid: Entity,
         mode: u64,
         initial_period: u64,
-        descending_period: u64,
-        max_price: u64,
-        min_price: u64,
         caller_crew: Entity,
         context: Context
     ) {
         assert(asteroid.label == entities::ASTEROID, errors::INCORRECT_ENTITY_TYPE);
         assert(mode == modes::MANUAL || mode == modes::AUTO, errors::INCORRECT_STATUS);
-        assert(descending_period > 0, errors::INVALID_AGREEMENT);
-        assert(max_price >= min_price, errors::INVALID_AGREEMENT);
-        assert(min_price > 0, errors::INVALID_AGREEMENT);
 
         let mut crew_details = CrewDetailsTrait::new(caller_crew);
         crew_details.assert_delegated_to(context.caller);
         crew_details.assert_manned();
         caller_crew.assert_controls(asteroid);
 
-        let settings = PrepaidAgreementAuctionSettingsTrait::new(
-            mode, initial_period, descending_period, max_price, min_price
-        );
+        let settings = PrepaidAgreementAuctionSettingsTrait::new(mode, initial_period);
         components::set::<PrepaidAgreementAuctionSettings>(asteroid.path(), settings);
 
         self.emit(PrepaidAgreementAuctionConfigured {
             asteroid: asteroid,
             mode: mode,
             initial_period: initial_period,
-            descending_period: descending_period,
-            max_price: max_price,
-            min_price: min_price,
             caller_crew: caller_crew,
             caller: context.caller
         });
@@ -96,14 +82,11 @@ mod tests {
 
         let mut state = ConfigurePrepaidAgreementAuction::contract_state_for_testing();
         ConfigurePrepaidAgreementAuction::run(
-            ref state, asteroid, modes::AUTO, 3600, 604800, 2000000, 1000000, controller, mocks::context('CONTROLLER')
+            ref state, asteroid, modes::AUTO, 3600, controller, mocks::context('CONTROLLER')
         );
 
         let settings = components::get::<PrepaidAgreementAuctionSettings>(asteroid.path()).expect('settings missing');
         assert(settings.mode == modes::AUTO, 'wrong mode');
         assert(settings.initial_period == 3600, 'wrong initial');
-        assert(settings.descending_period == 604800, 'wrong descending');
-        assert(settings.max_price == 2000000, 'wrong max');
-        assert(settings.min_price == 1000000, 'wrong min');
     }
 }

@@ -87,7 +87,15 @@ mod AcceptPrepaidAgreement {
                         building = lot_use;
                         building_controller = components::get::<Control>(building.path())
                             .expect(errors::CONTROL_NOT_FOUND).controller;
-                        assert(!controller_crew.controls(lot_use), 'lot controlled by asteroid');
+                        assert(building_controller != controller_crew, 'lot controlled by asteroid');
+                        match components::get::<Crew>(building_controller.path()) {
+                            Option::Some(building_crew_data) => {
+                                let controller_delegate = components::get::<Crew>(controller_crew.path())
+                                    .expect(errors::CREW_NOT_FOUND).delegated_to;
+                                assert(controller_delegate != building_crew_data.delegated_to, 'lot controlled by asteroid');
+                            },
+                            Option::None(_) => ()
+                        };
                     }
                 },
                 Option::None(_) => ()
@@ -133,8 +141,17 @@ mod AcceptPrepaidAgreement {
 
                 let auction_amount = auction_price(settings, elapsed);
                 let lease_lapse = ((context.now - current_data.end_time) * current_data.rate).div_ceil(3600);
-                let to_controller = min(auction_amount, lease_lapse);
-                let to_building_controller = auction_amount - to_controller;
+                let mut to_controller = min(auction_amount, lease_lapse);
+                let mut to_building_controller = auction_amount - to_controller;
+                if to_building_controller > 0 {
+                    match components::get::<Crew>(building_controller.path()) {
+                        Option::Some(_) => (),
+                        Option::None(_) => {
+                            to_controller = auction_amount;
+                            to_building_controller = 0;
+                        }
+                    };
+                }
 
                 if to_controller > 0 {
                     let mut memo: Array<felt252> = Default::default();
@@ -326,7 +343,8 @@ mod tests {
     use influence::config::{entities, permissions};
     use influence::contracts::sway::{Sway, ISwayDispatcher, ISwayDispatcherTrait};
     use influence::systems::agreements::helpers::{agreement_path, auction_price, lot_use_path, use_lot_path};
-    use influence::types::{ArrayHashTrait, EntityTrait};
+    use influence::systems::policies::helpers::policy_path;
+    use influence::types::{ArrayHashTrait, Entity, EntityTrait};
     use influence::test::{helpers, mocks};
 
     use super::{AcceptPrepaidAgreement, IAcceptPrepaidAgreementLibraryDispatcher,
@@ -535,11 +553,11 @@ mod tests {
         components::set::<Unique>(lot_use_path.span(), Unique { unique: warehouse.into() });
         components::set::<PrepaidAgreementAuctionSettings>(
             asteroid.path(),
-            PrepaidAgreementAuctionSettingsTrait::new(auction_modes::AUTO, 0, 604800, 2000000, 1000000)
+            PrepaidAgreementAuctionSettingsTrait::new(auction_modes::AUTO, 0)
         );
 
         // Fast forward to end of agreement
-        starknet::testing::set_block_timestamp(2628000 + 145000); // 2628000 + 40 hours (and change)
+        starknet::testing::set_block_timestamp(2628000 + 601200); // 2628000 + 167 hours
 
         // Create new agreement
         let new_crew = influence::test::mocks::delegated_crew(3, 'PLAYER2');
@@ -566,7 +584,7 @@ mod tests {
         memo.append('auction_controller'.into());
         ISwayDispatcher { contract_address: sway_address }.transfer_with_confirmation(
             starknet::contract_address_const::<'CONTROLLER'>(),
-            1760480,
+            1000000,
             memo.hash(),
             starknet::contract_address_const::<'DISPATCHER'>()
         );
@@ -575,6 +593,88 @@ mod tests {
         IAcceptPrepaidAgreementLibraryDispatcher { class_hash: class_hash }.run(
             lot, permissions::USE_LOT, new_crew, 2628000, new_crew, mocks::context('PLAYER2')
         );
+    }
+
+    #[test]
+    #[available_gas(40000000)]
+    fn test_accept_prepaid_with_auction_and_missing_building_controller_crew() {
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
+        helpers::init();
+        mocks::constants();
+        let asteroid = mocks::asteroid();
+        let lot = EntityTrait::from_position(asteroid.id, 1);
+
+        let sway_address = helpers::deploy_sway();
+        let amount: u256 = (100 * 1000000).into();
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'ADMIN'>());
+        ISwayDispatcher { contract_address: sway_address }.mint(starknet::contract_address_const::<'PLAYER2'>(), amount);
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
+
+        let controller_crew = influence::test::mocks::delegated_crew(1, 'PLAYER');
+        let mut crew_data = components::get::<Crew>(controller_crew.path()).unwrap();
+        crew_data.delegated_to = starknet::contract_address_const::<'CONTROLLER'>();
+        components::set::<Crew>(controller_crew.path(), crew_data);
+        components::set::<Control>(asteroid.path(), ControlTrait::new(controller_crew));
+
+        components::set::<PrepaidPolicy>(policy_path(asteroid, permissions::USE_LOT), PrepaidPolicy {
+            rate: 1000,
+            initial_term: 3600,
+            notice_period: 3600
+        });
+
+        let tenant = influence::test::mocks::delegated_crew(2, 'PLAYER');
+        components::set::<Location>(tenant.path(), LocationTrait::new(asteroid));
+        let warehouse = influence::test::mocks::public_warehouse(tenant, 3);
+        components::set::<Location>(warehouse.path(), LocationTrait::new(lot));
+        components::set::<Control>(warehouse.path(), ControlTrait::new(EntityTrait::new(entities::CREW, 99)));
+        components::set::<Unique>(lot_use_path(lot), Unique { unique: warehouse.into() });
+        components::set::<Unique>(use_lot_path(lot), Unique { unique: tenant.into() });
+        components::set::<PrepaidAgreement>(
+            agreement_path(lot, permissions::USE_LOT, tenant.into()),
+            PrepaidAgreementTrait::new(1000, 3600, 3600, 0, 3600)
+        );
+        components::set::<PrepaidAgreementAuctionSettings>(
+            asteroid.path(),
+            PrepaidAgreementAuctionSettingsTrait::new(auction_modes::AUTO, 0)
+        );
+
+        starknet::testing::set_block_timestamp(532800); // 147 hours after lease expiry
+
+        let new_crew = influence::test::mocks::delegated_crew(4, 'PLAYER2');
+        components::set::<Location>(new_crew.path(), LocationTrait::new(asteroid));
+
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'PLAYER2'>());
+        let mut memo: Array<felt252> = Default::default();
+        memo.append(lot.into());
+        memo.append(permissions::USE_LOT.into());
+        memo.append(new_crew.into());
+        ISwayDispatcher { contract_address: sway_address }.transfer_with_confirmation(
+            starknet::contract_address_const::<'CONTROLLER'>(),
+            1000,
+            memo.hash(),
+            starknet::contract_address_const::<'DISPATCHER'>()
+        );
+
+        let mut memo: Array<felt252> = Default::default();
+        memo.append(lot.into());
+        memo.append(permissions::USE_LOT.into());
+        memo.append(tenant.into());
+        memo.append('auction_controller'.into());
+        ISwayDispatcher { contract_address: sway_address }.transfer_with_confirmation(
+            starknet::contract_address_const::<'CONTROLLER'>(),
+            27360608,
+            memo.hash(),
+            starknet::contract_address_const::<'DISPATCHER'>()
+        );
+
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
+        let class_hash: ClassHash = AcceptPrepaidAgreement::TEST_CLASS_HASH.try_into().unwrap();
+        IAcceptPrepaidAgreementLibraryDispatcher { class_hash: class_hash }.run(
+            lot, permissions::USE_LOT, new_crew, 3600, new_crew, mocks::context('PLAYER2')
+        );
+
+        let use_lot: Entity = components::get::<Unique>(use_lot_path(lot)).unwrap().unique.try_into().unwrap();
+        assert(use_lot == new_crew, 'wrong use lot');
     }
 
     #[test]
@@ -680,15 +780,47 @@ mod tests {
     fn test_auction_price() {
         let settings = PrepaidAgreementAuctionSettingsTrait::defaults();
         let mut price = auction_price(settings, 0);
-        assert(price == 100000000000000000, 'invalid price');
+        assert(price == 1000000000000000000, 'invalid price');
+
+        price = auction_price(settings, 3599);
+        assert(price == 1000000000000000000, 'invalid price');
+
+        price = auction_price(settings, 3600);
+        assert(price == 847507816922201829, 'invalid price');
 
         price = auction_price(settings, 302400);
-        assert(price == 49700598802898204, 'invalid price');
+        assert(price == 920601877535, 'invalid price');
 
         price = auction_price(settings, 601200);
         assert(price == 1000000, 'invalid price');
 
+        price = auction_price(settings, 604799);
+        assert(price == 1000000, 'invalid price');
+
         price = auction_price(settings, 604800);
+        assert(price == 1000000, 'invalid price');
+    }
+
+    #[test]
+    #[available_gas(30000000)]
+    fn test_auction_price_initial_period() {
+        let settings = PrepaidAgreementAuctionSettingsTrait::new(auction_modes::AUTO, 1800);
+        let mut price = auction_price(settings, 1799);
+        assert(price == 1000000000000000000, 'invalid price');
+
+        price = auction_price(settings, 1800);
+        assert(price == 1000000000000000000, 'invalid price');
+
+        price = auction_price(settings, 5399);
+        assert(price == 1000000000000000000, 'invalid price');
+
+        price = auction_price(settings, 5400);
+        assert(price == 847507816922201829, 'invalid price');
+
+        price = auction_price(settings, 603000);
+        assert(price == 1000000, 'invalid price');
+
+        price = auction_price(settings, 606600);
         assert(price == 1000000, 'invalid price');
     }
 }
