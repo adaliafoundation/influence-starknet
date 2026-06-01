@@ -803,7 +803,7 @@ mod tests {
 
     #[test]
     #[available_gas(30000000)]
-    fn test_auction_price_initial_period() {
+    fn test_auction_price_grace_period() {
         let settings = PrepaidAgreementAuctionSettingsTrait::new(auction_modes::AUTO, 1800);
         let mut price = auction_price(settings, 1799);
         assert(price == 1000000000000000000, 'invalid price');

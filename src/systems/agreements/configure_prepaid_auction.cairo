@@ -16,7 +16,7 @@ mod ConfigurePrepaidAgreementAuction {
     struct PrepaidAgreementAuctionConfigured {
         asteroid: Entity,
         mode: u64,
-        initial_period: u64,
+        grace_period: u64,
         caller_crew: Entity,
         caller: ContractAddress
     }
@@ -32,7 +32,7 @@ mod ConfigurePrepaidAgreementAuction {
         ref self: ContractState,
         asteroid: Entity,
         mode: u64,
-        initial_period: u64,
+        grace_period: u64,
         caller_crew: Entity,
         context: Context
     ) {
@@ -44,13 +44,13 @@ mod ConfigurePrepaidAgreementAuction {
         crew_details.assert_manned();
         caller_crew.assert_controls(asteroid);
 
-        let settings = PrepaidAgreementAuctionSettingsTrait::new(mode, initial_period);
+        let settings = PrepaidAgreementAuctionSettingsTrait::new(mode, grace_period);
         components::set::<PrepaidAgreementAuctionSettings>(asteroid.path(), settings);
 
         self.emit(PrepaidAgreementAuctionConfigured {
             asteroid: asteroid,
             mode: mode,
-            initial_period: initial_period,
+            grace_period: grace_period,
             caller_crew: caller_crew,
             caller: context.caller
         });
@@ -87,6 +87,6 @@ mod tests {
 
         let settings = components::get::<PrepaidAgreementAuctionSettings>(asteroid.path()).expect('settings missing');
         assert(settings.mode == modes::AUTO, 'wrong mode');
-        assert(settings.initial_period == 3600, 'wrong initial');
+        assert(settings.grace_period == 3600, 'wrong grace');
     }
 }

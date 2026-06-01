@@ -283,11 +283,11 @@ mod helpers {
     }
 
     fn auction_price(settings: PrepaidAgreementAuctionSettings, elapsed: u64) -> u64 {
-        if elapsed < settings.initial_period {
+        if elapsed < settings.grace_period {
             return auction_price_at_step(0);
         }
 
-        let descending_elapsed = elapsed - settings.initial_period;
+        let descending_elapsed = elapsed - settings.grace_period;
         if descending_elapsed >= AUCTION_DESCENDING_PERIOD {
             return auction_price_at_step(AUCTION_STEPS - 1);
         }

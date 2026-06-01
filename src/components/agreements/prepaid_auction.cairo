@@ -18,12 +18,12 @@ mod statuses {
     const ACTIVE: u64 = 1;
 }
 
-const DEFAULT_INITIAL_PERIOD: u64 = 0;
+const DEFAULT_GRACE_PERIOD: u64 = 0;
 
 #[derive(Copy, Drop, Serde)]
 struct PrepaidAgreementAuctionSettings {
     mode: u64,
-    initial_period: u64
+    grace_period: u64
 }
 
 impl PrepaidAgreementAuctionSettingsComponent of ComponentTrait<PrepaidAgreementAuctionSettings> {
@@ -41,20 +41,20 @@ impl PrepaidAgreementAuctionSettingsComponent of ComponentTrait<PrepaidAgreement
 }
 
 trait PrepaidAgreementAuctionSettingsTrait {
-    fn new(mode: u64, initial_period: u64) -> PrepaidAgreementAuctionSettings;
+    fn new(mode: u64, grace_period: u64) -> PrepaidAgreementAuctionSettings;
     fn defaults() -> PrepaidAgreementAuctionSettings;
 }
 
 impl PrepaidAgreementAuctionSettingsImpl of PrepaidAgreementAuctionSettingsTrait {
-    fn new(mode: u64, initial_period: u64) -> PrepaidAgreementAuctionSettings {
+    fn new(mode: u64, grace_period: u64) -> PrepaidAgreementAuctionSettings {
         return PrepaidAgreementAuctionSettings {
             mode: mode,
-            initial_period: initial_period
+            grace_period: grace_period
         };
     }
 
     fn defaults() -> PrepaidAgreementAuctionSettings {
-        return PrepaidAgreementAuctionSettingsTrait::new(modes::MANUAL, DEFAULT_INITIAL_PERIOD);
+        return PrepaidAgreementAuctionSettingsTrait::new(modes::MANUAL, DEFAULT_GRACE_PERIOD);
     }
 }
 
@@ -109,11 +109,11 @@ impl StorePrepaidAgreementAuctionSettings of Store<PrepaidAgreementAuctionSettin
         address_domain: u32, base: StorageBaseAddress, offset: u8
     ) -> SyscallResult<PrepaidAgreementAuctionSettings> {
         let mode = Store::<u64>::read_at_offset(address_domain, base, offset)?;
-        let initial_period = Store::<u64>::read_at_offset(address_domain, base, offset + 1)?;
+        let grace_period = Store::<u64>::read_at_offset(address_domain, base, offset + 1)?;
 
         return Result::Ok(PrepaidAgreementAuctionSettings {
             mode: mode,
-            initial_period: initial_period
+            grace_period: grace_period
         });
     }
 
@@ -122,7 +122,7 @@ impl StorePrepaidAgreementAuctionSettings of Store<PrepaidAgreementAuctionSettin
         address_domain: u32, base: StorageBaseAddress, offset: u8, value: PrepaidAgreementAuctionSettings
     ) -> SyscallResult<()> {
         Store::<u64>::write_at_offset(address_domain, base, offset, value.mode)?;
-        return Store::<u64>::write_at_offset(address_domain, base, offset + 1, value.initial_period);
+        return Store::<u64>::write_at_offset(address_domain, base, offset + 1, value.grace_period);
     }
 
     #[inline(always)]
@@ -187,7 +187,7 @@ mod tests {
         let read_settings = Store::<PrepaidAgreementAuctionSettings>::read(0, base).unwrap();
 
         assert(read_settings.mode == modes::AUTO, 'mode wrong');
-        assert(read_settings.initial_period == 10, 'initial wrong');
+        assert(read_settings.grace_period == 10, 'grace wrong');
     }
 
     #[test]
