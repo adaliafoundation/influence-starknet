@@ -12,6 +12,7 @@ mod RepossessBuilding {
     use influence::components::{Control, ControlTrait, Location, LocationTrait, Unique,
         building::{statuses as building_statuses, Building, BuildingTrait}};
     use influence::config::{entities, errors, permissions};
+    use influence::systems::agreements::helpers::use_lot_path;
     use influence::types::{Context, Entity, EntityTrait};
 
     #[storage]
@@ -61,7 +62,9 @@ mod RepossessBuilding {
             Option::None(_) => ()
         };
 
-        if caller_crew.controls(asteroid) || is_current_tenant {
+        let is_asteroid_controller = caller_crew.controls(asteroid);
+
+        if is_asteroid_controller || is_current_tenant {
             // For the current controller, check if caller is not blocked by lot user
             assert(!blocked_by_tenant, 'blocked by lot user');
         } else {
@@ -77,6 +80,9 @@ mod RepossessBuilding {
         }
 
         components::set::<Control>(building.path(), ControlTrait::new(caller_crew));
+        if is_asteroid_controller {
+            components::set::<Unique>(use_lot_path(lot), Unique { unique: 0 });
+        }
         self.emit(BuildingRepossessed {
             building: building,
             caller_crew: caller_crew,
@@ -98,14 +104,14 @@ mod tests {
     use influence::components::{Control, ControlTrait, Location, LocationTrait, Unique, WhitelistAgreement,
         WhitelistAgreementTrait};
     use influence::config::{entities, permissions};
-    use influence::systems::agreements::helpers::agreement_path;
+    use influence::systems::agreements::helpers::{agreement_path, use_lot_path};
     use influence::types::entity::EntityTrait;
     use influence::test::{helpers, mocks};
 
     use super::RepossessBuilding;
 
     #[test]
-    #[available_gas(15000000)]
+    #[available_gas(30000000)]
     fn test_repossess_building() {
         starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
         helpers::init();
@@ -119,12 +125,15 @@ mod tests {
         let caller_crew = influence::test::mocks::delegated_crew(2, 'PLAYER');
         components::set::<Control>(asteroid.path(), ControlTrait::new(caller_crew));
         components::set::<Location>(caller_crew.path(), LocationTrait::new(lot));
+        let tenant = influence::test::mocks::delegated_crew(3, 'OTHER_PLAYER');
+        components::set::<Unique>(use_lot_path(lot), Unique { unique: tenant.into() });
 
         let mut state = RepossessBuilding::contract_state_for_testing();
         RepossessBuilding::run(ref state, refinery, caller_crew, mocks::context('PLAYER'));
 
         let control_data = components::get::<Control>(refinery.path()).expect('control not set');
         assert(control_data.controller == caller_crew, 'control not transferred');
+        assert(components::get::<Unique>(use_lot_path(lot)).is_none(), 'use lot not cleared');
     }
 
     #[test]

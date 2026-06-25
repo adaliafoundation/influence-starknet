@@ -133,6 +133,12 @@ mod WriteComponent {
         } else if name == 'PrepaidAgreement' {
             let comp_data = Serde::<components::PrepaidAgreement>::deserialize(ref data).unwrap();
             components::set::<components::PrepaidAgreement>(path, comp_data);
+        } else if name == 'PrepaidAgreementAuction' {
+            let comp_data = Serde::<components::PrepaidAgreementAuction>::deserialize(ref data).unwrap();
+            components::set::<components::PrepaidAgreementAuction>(path, comp_data);
+        } else if name == 'PrepaidAgreementAuctionSettings' {
+            let comp_data = Serde::<components::PrepaidAgreementAuctionSettings>::deserialize(ref data).unwrap();
+            components::set::<components::PrepaidAgreementAuctionSettings>(path, comp_data);
         } else if name == 'WhitelistAgreement' {
             let comp_data = Serde::<components::WhitelistAgreement>::deserialize(ref data).unwrap();
             components::set::<components::WhitelistAgreement>(path, comp_data);

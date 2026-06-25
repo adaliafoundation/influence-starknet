@@ -7,10 +7,13 @@ mod ExtendPrepaidAgreement {
 
     use influence::{components, config, contracts};
     use influence::common::{crew::CrewDetailsTrait, math::RoundedDivTrait};
-    use influence::components::{Control, Crew, CrewTrait, PrepaidAgreement, PrepaidAgreementTrait};
+    use influence::components::{
+        Control, Crew, CrewTrait, PrepaidAgreement, PrepaidAgreementTrait, PrepaidAgreementAuction,
+        PrepaidAgreementAuctionTrait, Unique
+    };
     use influence::config::{entities, errors, permissions};
     use influence::contracts::sway::{ISwayDispatcher, ISwayDispatcherTrait};
-    use influence::systems::agreements::helpers::agreement_path;
+    use influence::systems::agreements::helpers::{agreement_path, lot_use_path, use_lot_path};
     use influence::types::{ArrayHashTrait, Context, Entity, EntityTrait};
 
     #[storage]
@@ -53,17 +56,40 @@ mod ExtendPrepaidAgreement {
         assert(caller_crew == permitted.controller(), 'not controller or permitted');
 
         // Check for applicable agreement (Prepaid)
-        let prepaid_path = agreement_path(target, permission, caller_crew.into());
-        let mut agreement_data = components::get::<PrepaidAgreement>(prepaid_path)
-            .expect(errors::PREPAID_AGREEMENT_NOT_FOUND);
+        let mut prepaid_path = agreement_path(target, permission, permitted.into());
+        let mut agreement_data = PrepaidAgreementTrait::new(0, 0, 0, 0, 0);
+        let mut expired_renewal = false;
 
-        // Ensure you can't extend an expired agreement
-        assert(agreement_data.end_time > context.now, errors::AGREEMENT_EXPIRED);
+        match components::get::<PrepaidAgreement>(prepaid_path) {
+            Option::Some(data) => {
+                agreement_data = data;
+            },
+            Option::None(_) => {
+                assert(target.label == entities::LOT, errors::PREPAID_AGREEMENT_NOT_FOUND);
+            }
+        };
 
-        // Check that the agreement is not in notice period and won't be too long
+        if agreement_data.end_time == 0 || agreement_data.end_time <= context.now {
+            assert(target.label == entities::LOT, errors::AGREEMENT_EXPIRED);
+            let lot_use: Entity = components::get::<Unique>(lot_use_path(target)).expect(errors::UNIQUE_NOT_FOUND).unique
+                .try_into().unwrap();
+            assert(lot_use.label == entities::BUILDING, errors::INCORRECT_ENTITY_TYPE);
+            let building_controller = components::get::<Control>(lot_use.path())
+                .expect(errors::CONTROL_NOT_FOUND).controller;
+            let current_tenant: Entity = components::get::<Unique>(use_lot_path(target)).expect(errors::UNIQUE_NOT_FOUND).unique
+                .try_into().unwrap();
+            assert(permitted == current_tenant || permitted == building_controller, errors::ACCESS_DENIED);
+
+            prepaid_path = agreement_path(target, permission, current_tenant.into());
+            agreement_data = components::get::<PrepaidAgreement>(prepaid_path)
+                .expect(errors::PREPAID_AGREEMENT_NOT_FOUND);
+            assert(agreement_data.end_time <= context.now, errors::AGREEMENT_EXPIRED);
+            expired_renewal = true;
+        }
+
+        // Check that the agreement is not in notice period and the added term is not too long
         assert(agreement_data.notice_time == 0, errors::AGREEMENT_CANCELLED);
-        let extended_term = agreement_data.end_time - agreement_data.start_time + added_term;
-        assert(extended_term <= config::get('MAX_POLICY_DURATION').try_into().unwrap(), errors::AGREEMENT_TOO_LONG);
+        assert(added_term <= config::get('MAX_POLICY_DURATION').try_into().unwrap(), errors::AGREEMENT_TOO_LONG);
 
         // Get the controller and delegate for the target entity
         let mut controller = EntityTrait::new(entities::CREW, 0);
@@ -81,7 +107,11 @@ mod ExtendPrepaidAgreement {
         let delegate = components::get::<Crew>(controller.path()).expect(errors::CREW_NOT_FOUND).delegated_to;
 
         // Calculate payment amount
-        let amount = (agreement_data.rate * added_term).div_ceil(3600);
+        let mut paid_term = added_term;
+        if expired_renewal {
+            paid_term += context.now - agreement_data.end_time;
+        }
+        let amount = (agreement_data.rate * paid_term).div_ceil(3600);
 
         // Confirm receipt on SWAY contract for payment to controller
         let mut memo: Array<felt252> = Default::default();
@@ -93,8 +123,22 @@ mod ExtendPrepaidAgreement {
         );
 
         // Store the agreement
-        agreement_data.end_time += added_term;
-        components::set::<PrepaidAgreement>(prepaid_path, agreement_data);
+        if expired_renewal {
+            agreement_data.start_time = context.now;
+            agreement_data.end_time = context.now + added_term;
+            components::set::<PrepaidAgreement>(agreement_path(target, permission, permitted.into()), agreement_data);
+            components::set::<Unique>(use_lot_path(target), Unique { unique: permitted.into() });
+
+            match components::get::<PrepaidAgreementAuction>(target.path()) {
+                Option::Some(_) => {
+                    components::set::<PrepaidAgreementAuction>(target.path(), PrepaidAgreementAuctionTrait::inactive());
+                },
+                Option::None(_) => ()
+            };
+        } else {
+            agreement_data.end_time += added_term;
+            components::set::<PrepaidAgreement>(prepaid_path, agreement_data);
+        }
 
         self.emit(PrepaidAgreementExtended {
             target: target,
@@ -136,10 +180,10 @@ mod tests {
 
     use influence::components;
     use influence::components::{Control, ControlTrait, Crew, CrewTrait, Location, LocationTrait,
-        PrepaidAgreement, PrepaidAgreementTrait};
+        PrepaidAgreement, PrepaidAgreementTrait, Unique};
     use influence::config::{entities, permissions};
     use influence::contracts::sway::{Sway, ISwayDispatcher, ISwayDispatcherTrait};
-    use influence::systems::agreements::helpers::agreement_path;
+    use influence::systems::agreements::helpers::{agreement_path, lot_use_path, use_lot_path};
     use influence::types::{ArrayHashTrait, EntityTrait};
     use influence::test::{helpers, mocks};
 
@@ -202,7 +246,64 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(11000000)]
+    #[available_gas(20000000)]
+    fn test_extend_allows_reextension_past_max_policy_duration() {
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
+        helpers::init();
+        mocks::constants();
+        let asteroid = mocks::adalia_prime();
+        let max_policy_duration: u64 = 31536000;
+
+        // Deploy SWAY
+        let sway_address = helpers::deploy_sway();
+        let amount: u256 = (100 * 1000000).into();
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'ADMIN'>());
+        ISwayDispatcher { contract_address: sway_address }.mint(starknet::contract_address_const::<'PLAYER'>(), amount);
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
+
+        let controller_crew = influence::test::mocks::delegated_crew(1, 'CONTROLLER');
+        components::set::<Control>(asteroid.path(), ControlTrait::new(controller_crew));
+
+        // Create prepaid agreement with an existing full year term.
+        let lot = EntityTrait::from_position(1, 1);
+        let caller_crew = influence::test::mocks::delegated_crew(2, 'PLAYER');
+        components::set::<Location>(caller_crew.path(), LocationTrait::new(asteroid));
+
+        starknet::testing::set_block_timestamp(10000);
+        let now = starknet::get_block_timestamp();
+        let prepaid_path = agreement_path(lot, permissions::USE_LOT, caller_crew.into());
+        components::set::<PrepaidAgreement>(
+            prepaid_path,
+            PrepaidAgreementTrait::new(3600, 3600, 3600, now, now + max_policy_duration)
+        );
+
+        // Send payment for one more full year.
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'PLAYER'>());
+        let mut memo: Array<felt252> = Default::default();
+        memo.append(lot.into());
+        memo.append(permissions::USE_LOT.into());
+        memo.append(caller_crew.into());
+        ISwayDispatcher { contract_address: sway_address }.transfer_with_confirmation(
+            starknet::contract_address_const::<'CONTROLLER'>(),
+            max_policy_duration.into(),
+            memo.hash(),
+            starknet::contract_address_const::<'DISPATCHER'>()
+        );
+
+        // Extend the agreement
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
+        let class_hash: ClassHash = ExtendPrepaidAgreement::TEST_CLASS_HASH.try_into().unwrap();
+        IExtendPrepaidAgreementLibraryDispatcher { class_hash: class_hash }.run(
+            lot, permissions::USE_LOT, caller_crew, max_policy_duration, caller_crew, mocks::context('PLAYER')
+        );
+
+        let agreement_data = components::get::<PrepaidAgreement>(prepaid_path).unwrap();
+        assert(agreement_data.start_time == now, 'wrong start time');
+        assert(agreement_data.end_time == now + max_policy_duration + max_policy_duration, 'wrong end time');
+    }
+
+    #[test]
+    #[available_gas(20000000)]
     #[should_panic(expected: ('SWAY: invalid receipt', 'ENTRYPOINT_FAILED', 'ENTRYPOINT_FAILED'))]
     fn test_insufficient_funds() {
         starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
@@ -254,7 +355,7 @@ mod tests {
     }
 
     #[test]
-    #[available_gas(11000000)]
+    #[available_gas(20000000)]
     #[should_panic(expected: ('SWAY: invalid receipt', 'ENTRYPOINT_FAILED', 'ENTRYPOINT_FAILED'))]
     fn test_wrong_recipient() {
         starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
@@ -303,5 +404,73 @@ mod tests {
         IExtendPrepaidAgreementLibraryDispatcher { class_hash: class_hash }.run(
             lot, permissions::USE_LOT, caller_crew, 7200, caller_crew, mocks::context('PLAYER')
         );
+    }
+
+    #[test]
+    #[available_gas(30000000)]
+    fn test_expired_lease_renewal_by_building_controller() {
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
+        helpers::init();
+        mocks::constants();
+        let asteroid = mocks::adalia_prime();
+        let lot = EntityTrait::from_position(asteroid.id, 1);
+
+        // Deploy SWAY
+        let sway_address = helpers::deploy_sway();
+        let amount: u256 = (100 * 1000000).into();
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'ADMIN'>());
+        ISwayDispatcher { contract_address: sway_address }.mint(starknet::contract_address_const::<'PLAYER2'>(), amount);
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
+
+        let asteroid_controller = influence::test::mocks::delegated_crew(1, 'CONTROLLER');
+        components::set::<Control>(asteroid.path(), ControlTrait::new(asteroid_controller));
+
+        let tenant = influence::test::mocks::delegated_crew(2, 'PLAYER');
+        components::set::<Location>(tenant.path(), LocationTrait::new(asteroid));
+        let building_controller = influence::test::mocks::delegated_crew(3, 'PLAYER2');
+        components::set::<Location>(building_controller.path(), LocationTrait::new(asteroid));
+        let warehouse = influence::test::mocks::public_warehouse(building_controller, 3);
+        components::set::<Location>(warehouse.path(), LocationTrait::new(lot));
+        components::set::<Unique>(lot_use_path(lot), Unique { unique: warehouse.into() });
+        components::set::<Unique>(use_lot_path(lot), Unique { unique: tenant.into() });
+        components::set::<PrepaidAgreement>(
+            agreement_path(lot, permissions::USE_LOT, tenant.into()),
+            PrepaidAgreementTrait::new(3600, 3600, 3600, 0, 3600)
+        );
+
+        starknet::testing::set_block_timestamp(7200);
+
+        // Pay for the lapse plus the requested renewed term.
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'PLAYER2'>());
+        let mut memo: Array<felt252> = Default::default();
+        memo.append(lot.into());
+        memo.append(permissions::USE_LOT.into());
+        memo.append(building_controller.into());
+        ISwayDispatcher { contract_address: sway_address }.transfer_with_confirmation(
+            starknet::contract_address_const::<'CONTROLLER'>(),
+            7200,
+            memo.hash(),
+            starknet::contract_address_const::<'DISPATCHER'>()
+        );
+
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
+        let class_hash: ClassHash = ExtendPrepaidAgreement::TEST_CLASS_HASH.try_into().unwrap();
+        IExtendPrepaidAgreementLibraryDispatcher { class_hash: class_hash }.run(
+            lot,
+            permissions::USE_LOT,
+            building_controller,
+            3600,
+            building_controller,
+            mocks::context('PLAYER2')
+        );
+
+        let agreement = components::get::<PrepaidAgreement>(
+            agreement_path(lot, permissions::USE_LOT, building_controller.into())
+        ).expect('agreement missing');
+        assert(agreement.start_time == 7200, 'wrong start time');
+        assert(agreement.end_time == 10800, 'wrong end time');
+
+        let unique = components::get::<Unique>(use_lot_path(lot)).expect('use lot missing');
+        assert(unique.unique == building_controller.into(), 'wrong use lot');
     }
 }

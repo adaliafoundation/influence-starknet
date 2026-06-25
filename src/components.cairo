@@ -48,6 +48,10 @@ mod unique;
 
 use agreements::contract::{ContractAgreement, ContractAgreementTrait};
 use agreements::prepaid::{PrepaidAgreement, PrepaidAgreementTrait};
+use agreements::prepaid_auction::{
+    PrepaidAgreementAuction, PrepaidAgreementAuctionTrait, PrepaidAgreementAuctionSettings,
+    PrepaidAgreementAuctionSettingsTrait
+};
 use agreements::whitelist::{WhitelistAgreement, WhitelistAgreementTrait};
 
 // Types and configs
