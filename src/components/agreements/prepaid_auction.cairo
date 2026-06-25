@@ -28,7 +28,7 @@ struct PrepaidAgreementAuctionSettings {
 
 impl PrepaidAgreementAuctionSettingsComponent of ComponentTrait<PrepaidAgreementAuctionSettings> {
     fn name() -> felt252 {
-        return 'PrepaidAgrAuctionSet';
+        return 'PrepaidAgreementAuctionSet';
     }
 
     fn is_set(data: PrepaidAgreementAuctionSettings) -> bool {

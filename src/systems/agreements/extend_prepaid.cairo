@@ -87,13 +87,9 @@ mod ExtendPrepaidAgreement {
             expired_renewal = true;
         }
 
-        // Check that the agreement is not in notice period and won't be too long
+        // Check that the agreement is not in notice period and the added term is not too long
         assert(agreement_data.notice_time == 0, errors::AGREEMENT_CANCELLED);
-        let mut extended_term = agreement_data.end_time - agreement_data.start_time + added_term;
-        if expired_renewal {
-            extended_term = added_term;
-        }
-        assert(extended_term <= config::get('MAX_POLICY_DURATION').try_into().unwrap(), errors::AGREEMENT_TOO_LONG);
+        assert(added_term <= config::get('MAX_POLICY_DURATION').try_into().unwrap(), errors::AGREEMENT_TOO_LONG);
 
         // Get the controller and delegate for the target entity
         let mut controller = EntityTrait::new(entities::CREW, 0);
@@ -247,6 +243,63 @@ mod tests {
         // Check that the agreement was extended
         let agreement_data = components::get::<PrepaidAgreement>(prepaid_path).unwrap();
         assert(agreement_data.end_time == 20800, 'wrong end time');
+    }
+
+    #[test]
+    #[available_gas(20000000)]
+    fn test_extend_allows_reextension_past_max_policy_duration() {
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
+        helpers::init();
+        mocks::constants();
+        let asteroid = mocks::adalia_prime();
+        let max_policy_duration: u64 = 31536000;
+
+        // Deploy SWAY
+        let sway_address = helpers::deploy_sway();
+        let amount: u256 = (100 * 1000000).into();
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'ADMIN'>());
+        ISwayDispatcher { contract_address: sway_address }.mint(starknet::contract_address_const::<'PLAYER'>(), amount);
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
+
+        let controller_crew = influence::test::mocks::delegated_crew(1, 'CONTROLLER');
+        components::set::<Control>(asteroid.path(), ControlTrait::new(controller_crew));
+
+        // Create prepaid agreement with an existing full year term.
+        let lot = EntityTrait::from_position(1, 1);
+        let caller_crew = influence::test::mocks::delegated_crew(2, 'PLAYER');
+        components::set::<Location>(caller_crew.path(), LocationTrait::new(asteroid));
+
+        starknet::testing::set_block_timestamp(10000);
+        let now = starknet::get_block_timestamp();
+        let prepaid_path = agreement_path(lot, permissions::USE_LOT, caller_crew.into());
+        components::set::<PrepaidAgreement>(
+            prepaid_path,
+            PrepaidAgreementTrait::new(3600, 3600, 3600, now, now + max_policy_duration)
+        );
+
+        // Send payment for one more full year.
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'PLAYER'>());
+        let mut memo: Array<felt252> = Default::default();
+        memo.append(lot.into());
+        memo.append(permissions::USE_LOT.into());
+        memo.append(caller_crew.into());
+        ISwayDispatcher { contract_address: sway_address }.transfer_with_confirmation(
+            starknet::contract_address_const::<'CONTROLLER'>(),
+            max_policy_duration.into(),
+            memo.hash(),
+            starknet::contract_address_const::<'DISPATCHER'>()
+        );
+
+        // Extend the agreement
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
+        let class_hash: ClassHash = ExtendPrepaidAgreement::TEST_CLASS_HASH.try_into().unwrap();
+        IExtendPrepaidAgreementLibraryDispatcher { class_hash: class_hash }.run(
+            lot, permissions::USE_LOT, caller_crew, max_policy_duration, caller_crew, mocks::context('PLAYER')
+        );
+
+        let agreement_data = components::get::<PrepaidAgreement>(prepaid_path).unwrap();
+        assert(agreement_data.start_time == now, 'wrong start time');
+        assert(agreement_data.end_time == now + max_policy_duration + max_policy_duration, 'wrong end time');
     }
 
     #[test]
