@@ -18,7 +18,7 @@ mod AcceptPrepaidAgreement {
     use influence::config::{entities, errors, permissions, MAX_ASTEROID_RADIUS};
     use influence::contracts::sway::{ISwayDispatcher, ISwayDispatcherTrait};
     use influence::systems::agreements::helpers::{
-        agreement_path, auction_price, auction_settings, lot_use_path, use_lot_path
+        agreement_path, auction_price, auction_settings, lease_lapse_amount, lot_use_path, use_lot_path
     };
     use influence::systems::policies::helpers::policy_path;
     use influence::types::{ArrayHashTrait, Context, Entity, EntityTrait};
@@ -140,7 +140,7 @@ mod AcceptPrepaidAgreement {
                 }
 
                 let auction_amount = auction_price(settings, elapsed);
-                let lease_lapse = ((context.now - current_data.end_time) * current_data.rate).div_ceil(3600);
+                let lease_lapse = lease_lapse_amount(current_data.rate, context.now - current_data.end_time);
                 let mut to_controller = min(auction_amount, lease_lapse);
                 let mut to_building_controller = auction_amount - to_controller;
                 if to_building_controller > 0 {
@@ -663,6 +663,101 @@ mod tests {
         ISwayDispatcher { contract_address: sway_address }.transfer_with_confirmation(
             starknet::contract_address_const::<'CONTROLLER'>(),
             27360608,
+            memo.hash(),
+            starknet::contract_address_const::<'DISPATCHER'>()
+        );
+
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
+        let class_hash: ClassHash = AcceptPrepaidAgreement::TEST_CLASS_HASH.try_into().unwrap();
+        IAcceptPrepaidAgreementLibraryDispatcher { class_hash: class_hash }.run(
+            lot, permissions::USE_LOT, new_crew, 3600, new_crew, mocks::context('PLAYER2')
+        );
+
+        let use_lot: Entity = components::get::<Unique>(use_lot_path(lot)).unwrap().unique.try_into().unwrap();
+        assert(use_lot == new_crew, 'wrong use lot');
+    }
+
+    #[test]
+    #[available_gas(40000000)]
+    fn test_accept_prepaid_with_auction_caps_lease_lapse_at_one_year() {
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
+        helpers::init();
+        mocks::constants();
+        let asteroid = mocks::asteroid();
+        let lot = EntityTrait::from_position(asteroid.id, 1);
+
+        let sway_address = helpers::deploy_sway();
+        let amount: u256 = (100 * 1000000).into();
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'ADMIN'>());
+        ISwayDispatcher { contract_address: sway_address }.mint(starknet::contract_address_const::<'PLAYER2'>(), amount);
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
+
+        let controller_crew = influence::test::mocks::delegated_crew(1, 'PLAYER');
+        let mut crew_data = components::get::<Crew>(controller_crew.path()).unwrap();
+        crew_data.delegated_to = starknet::contract_address_const::<'CONTROLLER'>();
+        components::set::<Crew>(controller_crew.path(), crew_data);
+        components::set::<Control>(asteroid.path(), ControlTrait::new(controller_crew));
+
+        components::set::<PrepaidPolicy>(policy_path(asteroid, permissions::USE_LOT), PrepaidPolicy {
+            rate: 1,
+            initial_term: 3600,
+            notice_period: 3600
+        });
+
+        let tenant = influence::test::mocks::delegated_crew(2, 'PLAYER');
+        components::set::<Location>(tenant.path(), LocationTrait::new(asteroid));
+        let building_controller = influence::test::mocks::delegated_crew(3, 'BUILDING');
+        components::set::<Location>(building_controller.path(), LocationTrait::new(asteroid));
+        let warehouse = influence::test::mocks::public_warehouse(building_controller, 3);
+        components::set::<Location>(warehouse.path(), LocationTrait::new(lot));
+        components::set::<Unique>(lot_use_path(lot), Unique { unique: warehouse.into() });
+        components::set::<Unique>(use_lot_path(lot), Unique { unique: tenant.into() });
+        components::set::<PrepaidAgreement>(
+            agreement_path(lot, permissions::USE_LOT, tenant.into()),
+            PrepaidAgreementTrait::new(1, 3600, 3600, 0, 3600)
+        );
+        components::set::<PrepaidAgreementAuctionSettings>(
+            asteroid.path(),
+            PrepaidAgreementAuctionSettingsTrait::new(auction_modes::AUTO, 0)
+        );
+
+        starknet::testing::set_block_timestamp(3600 + 31536000 * 2);
+
+        let new_crew = influence::test::mocks::delegated_crew(4, 'PLAYER2');
+        components::set::<Location>(new_crew.path(), LocationTrait::new(asteroid));
+
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'PLAYER2'>());
+        let mut memo: Array<felt252> = Default::default();
+        memo.append(lot.into());
+        memo.append(permissions::USE_LOT.into());
+        memo.append(new_crew.into());
+        ISwayDispatcher { contract_address: sway_address }.transfer_with_confirmation(
+            starknet::contract_address_const::<'CONTROLLER'>(),
+            1,
+            memo.hash(),
+            starknet::contract_address_const::<'DISPATCHER'>()
+        );
+
+        let mut memo: Array<felt252> = Default::default();
+        memo.append(lot.into());
+        memo.append(permissions::USE_LOT.into());
+        memo.append(tenant.into());
+        memo.append('auction_controller'.into());
+        ISwayDispatcher { contract_address: sway_address }.transfer_with_confirmation(
+            starknet::contract_address_const::<'CONTROLLER'>(),
+            8760,
+            memo.hash(),
+            starknet::contract_address_const::<'DISPATCHER'>()
+        );
+
+        let mut memo: Array<felt252> = Default::default();
+        memo.append(lot.into());
+        memo.append(permissions::USE_LOT.into());
+        memo.append(tenant.into());
+        memo.append('auction_building'.into());
+        ISwayDispatcher { contract_address: sway_address }.transfer_with_confirmation(
+            starknet::contract_address_const::<'BUILDING'>(),
+            991240,
             memo.hash(),
             starknet::contract_address_const::<'DISPATCHER'>()
         );

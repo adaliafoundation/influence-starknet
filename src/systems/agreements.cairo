@@ -17,17 +17,20 @@ use remove_from_whitelist::RemoveFromWhitelist;
 
 mod helpers {
     use array::{ArrayTrait, SpanTrait};
+    use cmp::min;
     use option::OptionTrait;
     use traits::{Into, TryInto};
 
     use influence::components;
     use influence::components::{PrepaidAgreementAuctionSettings, PrepaidAgreementAuctionSettingsTrait};
+    use influence::common::math::RoundedDivTrait;
     use influence::config::{entities, permissions};
     use influence::types::{Entity, EntityTrait};
 
     const AUCTION_STEPS: u64 = 168;
     const AUCTION_STEP_SECONDS: u64 = 3600;
     const AUCTION_DESCENDING_PERIOD: u64 = 604800;
+    const MAX_LEASE_LAPSE_SECONDS: u64 = 31536000;
 
     fn auction_price_at_step(step: u64) -> u64 {
         if step < 84 {
@@ -294,6 +297,10 @@ mod helpers {
 
         let step = descending_elapsed / AUCTION_STEP_SECONDS;
         return auction_price_at_step(step);
+    }
+
+    fn lease_lapse_amount(rate: u64, elapsed: u64) -> u64 {
+        return (min(elapsed, MAX_LEASE_LAPSE_SECONDS) * rate).div_ceil(3600);
     }
 }
 
