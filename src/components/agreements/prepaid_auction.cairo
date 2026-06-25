@@ -127,7 +127,7 @@ impl StorePrepaidAgreementAuctionSettings of Store<PrepaidAgreementAuctionSettin
 
     #[inline(always)]
     fn size() -> u8 {
-        return 5;
+        return 2;
     }
 }
 
