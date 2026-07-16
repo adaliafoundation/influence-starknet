@@ -48,12 +48,12 @@ impl AccountImpl of AccountTrait {
 impl StoreAccount of Store<Account> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<Account> {
-        return StoreAccount::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: Account) -> SyscallResult<()> {
-        return StoreAccount::write_at_offset(address_domain, base, 0, value);
+        return Self::write_at_offset(address_domain, base, 0, value);
     }
 
     #[inline(always)]
@@ -67,7 +67,7 @@ impl StoreAccount of Store<Account> {
     fn write_at_offset(
         address_domain: u32, base: StorageBaseAddress, offset: u8, value: Account
     ) -> SyscallResult<()> {
-        Store::<u256>::write_at_offset(address_domain, base, offset, value.messaging_key_x);
+        Store::<u256>::write_at_offset(address_domain, base, offset, value.messaging_key_x).unwrap_syscall();
         return Store::<u256>::write_at_offset(address_domain, base, offset + 2, value.messaging_key_y);
     }
 
@@ -103,14 +103,14 @@ use debug::PrintTrait;
         let base = starknet::storage_base_address_from_felt252(42);
 
         // Should now have key
-        Store::<Account>::write(0, base, account);
+        Store::<Account>::write(0, base, account).unwrap_syscall();
         let mut read_account = Store::<Account>::read(0, base).unwrap_syscall();
         assert(read_account.messaging_key_x == key_x, 'should have key x');
         assert(read_account.messaging_key_y == key_y, 'should have key y');
 
         // Clear control and check
         let empty_account = AccountTrait::new(0, 0);
-        Store::<Account>::write(0, base, empty_account);
+        Store::<Account>::write(0, base, empty_account).unwrap_syscall();
         read_account = Store::<Account>::read(0, base).unwrap_syscall();
         assert(read_account.messaging_key_x == 0, 'should not have key x');
         assert(read_account.messaging_key_y == 0, 'should not have key y');

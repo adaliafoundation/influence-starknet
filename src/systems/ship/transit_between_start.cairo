@@ -118,7 +118,7 @@ mod TransitBetweenStart {
 
         // Get orbit data and calculate origin position at departure time
         let one = FixedTrait::ONE();
-        let thousand = FixedTrait::new(1000, false);
+        let _thousand = FixedTrait::new(1000, false);
         let mu = FixedTrait::new(MU, false);
 
         let origin_orbit = components::get::<Orbit>(origin.path()).expect(errors::ORBIT_NOT_FOUND);
@@ -161,7 +161,7 @@ mod TransitBetweenStart {
         );
 
         // Determine departure position and velocity based on transit solution
-        let transit_q = transit_p / (one + transit_ecc);
+        let _transit_q = transit_p / (one + transit_ecc);
         let (r_start, v_start) = elements::coe2rv(
             mu: mu,
             p: transit_p,

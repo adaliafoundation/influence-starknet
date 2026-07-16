@@ -1,4 +1,3 @@
-use integer::u256_sqrt;
 use traits::Into;
 
 use cubit::f128::{Fixed, FixedTrait, ONE_u128, trig::PI_u128};

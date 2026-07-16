@@ -80,12 +80,12 @@ impl ModifierTypeImpl of ModifierTypeTrait {
 impl StoreModifierType of Store<ModifierType> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<ModifierType> {
-        return StoreModifierType::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: ModifierType) -> SyscallResult<()> {
-        return StoreModifierType::write_at_offset(address_domain, base, 0, value);
+        return Self::write_at_offset(address_domain, base, 0, value);
     }
 
     #[inline(always)]
@@ -159,7 +159,7 @@ mod tests {
             further_modified: true
         };
 
-        StoreModifierType::write(0, base, to_store);
+        StoreModifierType::write(0, base, to_store).unwrap_syscall();
         let mut to_read = StoreModifierType::read(0, base).unwrap();
         assert(to_read.class == 5, 'wrong class');
         assert(to_read.dept_type == 12, 'wrong dept_type');

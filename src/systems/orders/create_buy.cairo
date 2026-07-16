@@ -75,7 +75,7 @@ mod CreateBuyOrder {
         assert(price != 0, 'price must be positive');
         let market_crew = components::get::<Control>(exchange.path()).expect(errors::CONTROL_NOT_FOUND).controller;
         let mut market_crew_details = CrewDetailsTrait::new(market_crew);
-        let mut market_crew_data = market_crew_details.component;
+        let mut _market_crew_data = market_crew_details.component;
         let enforce_eff = market_crew_details.bonus(modifier_types::MARKETPLACE_FEE_ENFORCEMENT, context.now);
         let maker_eff = crew_details.bonus(modifier_types::MARKETPLACE_FEE_REDUCTION, context.now);
         let (deposit, maker_fee) = required_deposit(price * amount, exchange_data.maker_fee, maker_eff, enforce_eff);
@@ -118,7 +118,7 @@ mod CreateBuyOrder {
         components::set::<Inventory>(destination_path.span(), destination_data);
 
         // Calculate surface transfer time for valid at
-        let (dest_ast, dest_lot) = storage.to_position();
+        let (dest_ast, _dest_lot) = storage.to_position();
         let hopper_eff = crew_details.bonus(modifier_types::HOPPER_TRANSPORT_TIME, context.now);
         let dist_eff = crew_details.bonus(modifier_types::FREE_TRANSPORT_DISTANCE, context.now);
         let ast = components::get::<Celestial>(EntityTrait::new(entities::ASTEROID, dest_ast).path())
@@ -133,7 +133,7 @@ mod CreateBuyOrder {
         // Update the crew (makers must actually travel to the marketplace)
         assert(crew_details.asteroid_id() == dest_ast, errors::DIFFERENT_ASTEROIDS);
         assert(crew_details.lot_id() != 0, errors::IN_ORBIT);
-        let (exchange_ast, exchange_lot) = exchange.to_position();
+        let (_exchange_ast, exchange_lot) = exchange.to_position();
         let crew_to_marketplace = position::hopper_travel_time(
             crew_details.lot_id(), exchange_lot, ast.radius, hopper_eff, dist_eff
         );

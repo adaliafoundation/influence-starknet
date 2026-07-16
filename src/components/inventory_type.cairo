@@ -77,12 +77,12 @@ impl InventoryTypeImpl of InventoryTypeTrait {
 impl StoreInventoryType of Store<InventoryType> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<InventoryType> {
-        return StoreInventoryType::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: InventoryType) -> SyscallResult<()> {
-        return StoreInventoryType::write_at_offset(address_domain, base, 0, value);
+        return Self::write_at_offset(address_domain, base, 0, value);
     }
 
     #[inline(always)]
@@ -160,7 +160,7 @@ mod tests {
             products: products.span(),
         };
 
-        StoreInventoryType::write(0, base, to_store);
+        StoreInventoryType::write(0, base, to_store).unwrap_syscall();
         let mut to_read = StoreInventoryType::read(0, base).unwrap();
         assert(to_read.mass == 562949953421312, 'wrong mass');
         assert(to_read.volume == 562949953421312, 'wrong volume');

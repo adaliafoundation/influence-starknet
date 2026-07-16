@@ -61,12 +61,12 @@ impl StationTypeImpl of StationTypeTrait {
 impl StoreStationType of Store<StationType> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<StationType> {
-        return StoreStationType::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: StationType) -> SyscallResult<()> {
-        return StoreStationType::write_at_offset(address_domain, base, 0, value);
+        return Self::write_at_offset(address_domain, base, 0, value);
     }
 
     #[inline(always)]
@@ -126,7 +126,7 @@ mod tests {
         let base = starknet::storage_base_address_from_felt252(42);
         let mut to_store = StationType { cap: 750000, recruitment: true, efficiency: FixedTrait::ONE() };
 
-        StoreStationType::write(0, base, to_store);
+        StoreStationType::write(0, base, to_store).unwrap_syscall();
         let mut to_read = StoreStationType::read(0, base).unwrap();
         assert(to_read.cap == 750000, 'wrong cap');
         assert(to_read.recruitment, 'wrong recruitment');

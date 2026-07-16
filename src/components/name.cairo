@@ -74,12 +74,12 @@ impl NameImpl of NameTrait {
 impl StoreName of Store<Name> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<Name> {
-        return StoreName::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: Name) -> SyscallResult<()> {
-        return StoreName::write_at_offset(address_domain, base, 0, value);
+        return Self::write_at_offset(address_domain, base, 0, value);
     }
 
     #[inline(always)]
@@ -126,8 +126,8 @@ mod tests {
     #[available_gas(500000)]
     fn test_storage() {
         let base = starknet::storage_base_address_from_felt252(42);
-        let asteroid = EntityTrait::new(entities::ASTEROID, 42);
-        Store::<Name>::write(0, base, Name { name: StringTrait::new('Adalia Prime') });
+        let _asteroid = EntityTrait::new(entities::ASTEROID, 42);
+        Store::<Name>::write(0, base, Name { name: StringTrait::new('Adalia Prime') }).unwrap_syscall();
 
         let read_name = Store::<Name>::read(0, base).unwrap_syscall();
         assert(read_name.name == StringTrait::new('Adalia Prime'), 'wrong name');

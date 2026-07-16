@@ -7,6 +7,7 @@ mod Ether {
     use clone::{Clone};
     use option::{OptionTrait};
     use starknet::{ClassHash, ContractAddress, get_caller_address};
+    use starknet::storage::Map;
     use traits::{Into, TryInto};
     use zeroable::Zeroable;
 
@@ -18,8 +19,8 @@ mod Ether {
         _symbol: felt252,
         _decimals: u8,
         _total_supply: u256,
-        balances: LegacyMap::<ContractAddress, u256>,
-        allowances: LegacyMap::<(ContractAddress, ContractAddress), u256>,
+        balances: Map::<ContractAddress, u256>,
+        allowances: Map::<(ContractAddress, ContractAddress), u256>,
     }
 
     #[event]

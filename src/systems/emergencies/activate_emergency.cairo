@@ -73,7 +73,7 @@ mod ActivateEmergency {
         components::set::<Inventory>(cargo_path.span(), cargo_inventory);
 
         // Check that station population equals current crew size (otherwise other crews need to be ejected)
-        let (station, station_data) = crew_details.station();
+        let (_station, station_data) = crew_details.station();
         assert(station_data.population == crew_data.roster.len().into(), errors::OTHER_CREWS_PRESENT);
 
         // Put ship into emergency mode

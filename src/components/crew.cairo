@@ -56,9 +56,11 @@ trait CrewTrait {
 
 impl CrewImpl of CrewTrait {
     fn new(delegated_to: ContractAddress) -> Crew {
+        let roster: Array<u64> = Default::default();
+
         return Crew {
             delegated_to: delegated_to,
-            roster: Default::default().span(),
+            roster: roster.span(),
             last_fed: 0,
             ready_at: 0,
             action_type: 0,
@@ -179,12 +181,12 @@ fn unpack_roster(packed: felt252) -> Span<u64> {
 impl StoreCrew of Store<Crew> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<Crew> {
-        return StoreCrew::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: Crew) -> SyscallResult<()> {
-        return StoreCrew::write_at_offset(address_domain, base, 0, value);
+        return Self::write_at_offset(address_domain, base, 0, value);
     }
 
     #[inline(always)]
@@ -227,8 +229,8 @@ impl StoreCrew of Store<Crew> {
         pack_u128(ref high, packed::EXP2_96, packed::EXP2_4, value.action_strategy.into());
 
         let survival = low.into() + high.into() * packed::EXP2_128;
-        Store::<ContractAddress>::write_at_offset(address_domain, base, offset, value.delegated_to);
-        Store::<felt252>::write_at_offset(address_domain, base, offset + 1, pack_roster(value.roster));
+        Store::<ContractAddress>::write_at_offset(address_domain, base, offset, value.delegated_to).unwrap_syscall();
+        Store::<felt252>::write_at_offset(address_domain, base, offset + 1, pack_roster(value.roster)).unwrap_syscall();
         return Store::<felt252>::write_at_offset(address_domain, base, offset + 2, survival);
     }
 
@@ -271,7 +273,7 @@ mod tests {
             action_round: 2,
             action_weight: 25000,
             action_strategy: 2
-        });
+        }).unwrap_syscall();
 
         let read_crew = Store::<Crew>::read(0, base).unwrap_syscall();
         assert(read_crew.delegated_to.into() == 'PLAYER', 'should have delegated_to');

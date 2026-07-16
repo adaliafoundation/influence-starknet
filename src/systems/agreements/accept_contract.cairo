@@ -51,7 +51,8 @@ mod AcceptContractAgreement {
         let mut controller_crew = EntityTrait::new(entities::CREW, 0);
         let (target_ast, _) = target.to_position();
         let mut asteroid = EntityTrait::new(entities::ASTEROID, target_ast);
-        let mut contract_path: Span<felt252> = Default::default().span();
+        let empty_contract_path: Array<felt252> = Default::default();
+        let mut contract_path: Span<felt252> = empty_contract_path.span();
 
         if target.label == entities::LOT {
             assert(permission == permissions::USE_LOT, 'invalid permission');
@@ -144,7 +145,7 @@ mod tests {
         starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
         helpers::init();
         let asteroid = mocks::adalia_prime();
-        let lot = EntityTrait::from_position(1, 1);
+        let _lot = EntityTrait::from_position(1, 1);
 
         // Deploy contract policies
         let class_hash: ClassHash = ContractPolicyContract::TEST_CLASS_HASH.try_into().unwrap();

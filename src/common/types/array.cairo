@@ -88,7 +88,7 @@ impl ArrayExtImpl<T, impl TCopy: Copy<T>, impl TDrop: Drop<T>> of ArrayTraitExt<
                 break ();
             }
             match self.pop_front() {
-                Option::Some(v) => {
+                Option::Some(_v) => {
                     n -= 1;
                 },
                 Option::None(_) => {
@@ -150,7 +150,7 @@ impl SpanImpl<T, impl TCopy: Copy<T>, impl TDrop: Drop<T>> of SpanTraitExt<T> {
                 break ();
             }
             match self.pop_front() {
-                Option::Some(v) => {
+                Option::Some(_v) => {
                     n -= 1;
                 },
                 Option::None(_) => {
@@ -166,7 +166,7 @@ impl SpanImpl<T, impl TCopy: Copy<T>, impl TDrop: Drop<T>> of SpanTraitExt<T> {
                 break ();
             }
             match self.pop_back() {
-                Option::Some(v) => {
+                Option::Some(_v) => {
                     n -= 1;
                 },
                 Option::None(_) => {
@@ -357,11 +357,11 @@ impl SpanImpl<T, impl TCopy: Copy<T>, impl TDrop: Drop<T>> of SpanTraitExt<T> {
 
 impl StoreArray of Store<Array<felt252>> {
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<Array<felt252>> {
-        return StoreArray::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     fn write(address_domain: u32, base: StorageBaseAddress, value: Array<felt252>) -> SyscallResult<()> {
-        return StoreArray::write_at_offset(address_domain, base, 0, value);
+        return Self::write_at_offset(address_domain, base, 0, value);
     }
 
     fn read_at_offset(
@@ -386,13 +386,13 @@ impl StoreArray of Store<Array<felt252>> {
         address_domain: u32, base: StorageBaseAddress, offset: u8, value: Array<felt252>
     ) -> SyscallResult<()> {
         let len: u8 = value.len().try_into().unwrap();
-        Store::<u8>::write_at_offset(address_domain, base, offset, len);
+        Store::<u8>::write_at_offset(address_domain, base, offset, len).unwrap_syscall();
         let mut iter: u8 = 0;
 
         loop {
             if iter >= len { break(); }
             let el = *value.at(iter.into());
-            Store::<felt252>::write_at_offset(address_domain, base, offset + iter + 1, el);
+            Store::<felt252>::write_at_offset(address_domain, base, offset + iter + 1, el).unwrap_syscall();
             iter += 1;
         };
 

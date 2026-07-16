@@ -138,7 +138,7 @@ mod tests {
         helpers::init();
         starknet::testing::set_caller_address(starknet::contract_address_const::<1>());
 
-        let asteroid_address = helpers::deploy_asteroid();
+        let _asteroid_address = helpers::deploy_asteroid();
         let merkle_proof = array![
             0x2222c4ac5ef85837696d786a5b0b84c437d7f037e46e4fecfb8b54433b4b5e7,
             0x3e1287bea05910563d20c29161393c5955fc9c7ac9144c3446b1a8653cc55ff
@@ -184,7 +184,7 @@ mod tests {
         helpers::init();
         starknet::testing::set_caller_address(starknet::contract_address_const::<1>());
 
-        let asteroid_address = helpers::deploy_asteroid();
+        let _asteroid_address = helpers::deploy_asteroid();
         let merkle_proof = array![
             0x2222c4ac5ef85837696d786a5b0b84c437d7f037e46e4fecfb8b54433b4b5e7,
             0x3e1287bea05910563d20c29161393c5955fc9c7ac9144c3446b1a8653cc55ff

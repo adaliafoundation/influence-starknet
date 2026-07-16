@@ -52,7 +52,7 @@ mod CancelDelivery {
         let products = delivery_data.contents;
 
         // Check that crew is on asteroid
-        let (origin_ast, origin_lot) = origin.to_position();
+        let (origin_ast, _origin_lot) = origin.to_position();
         assert(crew_details.asteroid_id() == origin_ast, errors::DIFFERENT_ASTEROIDS);
         assert(crew_details.lot_id() != 0, errors::IN_ORBIT);
 

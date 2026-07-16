@@ -76,12 +76,12 @@ impl DepositImpl of DepositTrait {
 impl StoreDeposit of Store<Deposit> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<Deposit> {
-        return StoreDeposit::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: Deposit) -> SyscallResult<()> {
-        return StoreDeposit::write_at_offset(address_domain, base, 0, value);
+        return Self::write_at_offset(address_domain, base, 0, value);
     }
 
     #[inline(always)]
@@ -154,7 +154,7 @@ mod tests {
             yield_eff: FixedTrait::new(5, false)
         };
 
-        Store::<Deposit>::write(0, base, deposit);
+        Store::<Deposit>::write(0, base, deposit).unwrap_syscall();
         let saved_deposit = Store::<Deposit>::read(0, base).unwrap_syscall();
         assert(saved_deposit.status == deposit.status, 'status does not match');
         assert(saved_deposit.resource == deposit.resource, 'resource does not match');

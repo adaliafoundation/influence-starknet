@@ -44,12 +44,12 @@ impl LocationImpl of LocationTrait {
 impl StoreLocation of Store<Location> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<Location> {
-        return StoreLocation::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: Location) -> SyscallResult<()> {
-        return StoreLocation::write_at_offset(address_domain, base, 0, value);
+        return Self::write_at_offset(address_domain, base, 0, value);
     }
 
     #[inline(always)]
@@ -90,7 +90,7 @@ mod tests {
     fn test_storage() {
         let base = starknet::storage_base_address_from_felt252(42);
         let asteroid = EntityTrait::new(entities::ASTEROID, 42);
-        Store::<Location>::write(0, base, LocationTrait::new(asteroid));
+        Store::<Location>::write(0, base, LocationTrait::new(asteroid)).unwrap_syscall();
 
         let read_location = Store::<Location>::read(0, base).unwrap_syscall();
         assert(read_location.location == asteroid, 'wrong location');

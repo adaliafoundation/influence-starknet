@@ -60,7 +60,7 @@ fn delegated_crew(id: u64, address: felt252) -> Entity {
     let crew = EntityTrait::new(entities::CREW, id);
     let address = contract_address_try_from_felt252(address).unwrap();
     let mut crew_data = CrewTrait::new(address);
-    let mut new_roster = Default::default();
+    let mut new_roster: Array<u64> = Default::default();
     new_roster.append(pilot.id);
     crew_data.roster = new_roster.span();
     components::set::<Crew>(crew.path(), crew_data);

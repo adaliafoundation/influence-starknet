@@ -61,12 +61,12 @@ impl ShipVariantTypeImpl of ShipVariantTypeTrait {
 impl StoreShipVariantType of Store<ShipVariantType> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<ShipVariantType> {
-        return StoreShipVariantType::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: ShipVariantType) -> SyscallResult<()> {
-        return StoreShipVariantType::write_at_offset(address_domain, base, 0, value);
+        return Self::write_at_offset(address_domain, base, 0, value);
     }
 
     #[inline(always)]
@@ -125,7 +125,7 @@ mod tests {
         let base = starknet::storage_base_address_from_felt252(42);
         let mut to_store = ShipVariantType { ship_type: 2, exhaust_velocity_modifier: FixedTrait::new(429496730, false) };
 
-        StoreShipVariantType::write(0, base, to_store);
+        StoreShipVariantType::write(0, base, to_store).unwrap_syscall();
         let mut to_read = StoreShipVariantType::read(0, base).unwrap();
         assert(to_read.ship_type == 2, 'wrong ship type');
         assert(to_read.exhaust_velocity_modifier == FixedTrait::new(429496729, false), 'wrong exhaust velocity bonus');

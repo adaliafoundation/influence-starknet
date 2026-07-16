@@ -66,12 +66,12 @@ impl BuildingTypeImpl of BuildingTypeTrait {
 impl StoreBuildingType of Store<BuildingType> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<BuildingType> {
-        return StoreBuildingType::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: BuildingType) -> SyscallResult<()> {
-        return StoreBuildingType::write_at_offset(address_domain, base, 0, value);
+        return Self::write_at_offset(address_domain, base, 0, value);
     }
 
     #[inline(always)]
@@ -124,7 +124,7 @@ mod tests {
         let base = starknet::storage_base_address_from_felt252(42);
         let mut to_store = BuildingType { process_type: 1234, site_slot: 255, site_type: 3456 };
 
-        StoreBuildingType::write(0, base, to_store);
+        StoreBuildingType::write(0, base, to_store).unwrap_syscall();
         let mut to_read = StoreBuildingType::read(0, base).unwrap();
         assert(to_read.process_type == 1234, 'wrong process');
         assert(to_read.site_slot == 255, 'wrong site_slot');

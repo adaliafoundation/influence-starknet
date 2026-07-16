@@ -44,12 +44,12 @@ impl ControlImpl of ControlTrait {
 impl StoreControl of Store<Control> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<Control> {
-        return StoreControl::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: Control) -> SyscallResult<()> {
-        return StoreControl::write_at_offset(address_domain, base, 0, value);
+        return Self::write_at_offset(address_domain, base, 0, value);
     }
 
     #[inline(always)]
@@ -96,14 +96,14 @@ mod tests {
         let base = starknet::storage_base_address_from_felt252(42);
 
         // Should now be controlled
-        Store::<Control>::write(0, base, control);
+        Store::<Control>::write(0, base, control).unwrap_syscall();
         let mut read_control = Store::<Control>::read(0, base).unwrap_syscall();
         assert(read_control.controller == crew, 'should be controlled');
 
         // Clear control and check
         let empty_entity: Entity = Default::default();
         let empty_control = ControlTrait::new(empty_entity);
-        Store::<Control>::write(0, base, empty_control);
+        Store::<Control>::write(0, base, empty_control).unwrap_syscall();
         read_control = Store::<Control>::read(0, base).unwrap_syscall();
         assert(read_control.controller.id == 0, 'should not be controlled');
     }

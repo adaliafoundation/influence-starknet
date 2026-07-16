@@ -48,12 +48,12 @@ impl PrepaidPolicyImpl of PrepaidPolicyTrait {
 impl StorePrepaidPolicy of Store<PrepaidPolicy> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<PrepaidPolicy> {
-        return StorePrepaidPolicy::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: PrepaidPolicy) -> SyscallResult<()> {
-        return StorePrepaidPolicy::write_at_offset(
+        return Self::write_at_offset(
             address_domain, base, 0, value
         );
     }
@@ -111,7 +111,7 @@ mod tests {
         let access_policy = PrepaidPolicyTrait::new(1, 2, 3);
         let base = starknet::storage_base_address_from_felt252(42);
 
-        Store::<PrepaidPolicy>::write(0, base, access_policy);
+        Store::<PrepaidPolicy>::write(0, base, access_policy).unwrap_syscall();
         let mut read_policy = Store::<PrepaidPolicy>::read(0, base).unwrap_syscall();
         assert(read_policy.rate == 1, 'rate should be 1');
         assert(read_policy.initial_term == 2, 'initial_term should be 2');

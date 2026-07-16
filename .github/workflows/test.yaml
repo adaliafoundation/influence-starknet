@@ -13,28 +13,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: 'true'
 
-      - uses: actions/setup-node@v3
+      - name: Setup Cairo toolchain
+        uses: software-mansion/setup-scarb@v1
         with:
-          node-version: 18
-
-      - name: Install cairo compiler
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          source "$HOME/.cargo/env"
-          rustup toolchain install 1.76.0
-          rustup override set 1.76.0
-          git clone https://github.com/starkware-libs/cairo
-          cd cairo
-          git checkout v2.1.1
-          cargo build --all --release --locked
-          cd ../
-
-      - name: Add Cairo compiler to path
-        run: echo "$(pwd)/cairo/target/release" >> $GITHUB_PATH
+          scarb-version: "2.7.0"
 
       - name: Test the code
-        run: npm run test-contracts
+        run: scarb test

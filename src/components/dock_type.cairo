@@ -56,12 +56,12 @@ impl DockTypeImpl of DockTypeTrait {
 impl StoreDockType of Store<DockType> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<DockType> {
-        return StoreDockType::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: DockType) -> SyscallResult<()> {
-        return StoreDockType::write_at_offset(address_domain, base, 0, value);
+        return Self::write_at_offset(address_domain, base, 0, value);
     }
 
     #[inline(always)]
@@ -112,7 +112,7 @@ mod tests {
         let base = starknet::storage_base_address_from_felt252(42);
         let mut to_store = DockType { cap: 250, delay: 10000 };
 
-        StoreDockType::write(0, base, to_store);
+        StoreDockType::write(0, base, to_store).unwrap_syscall();
         let mut to_read = StoreDockType::read(0, base).unwrap();
         assert(to_read.cap == 250, 'wrong cap');
         assert(to_read.delay == 10000, 'wrong delay');

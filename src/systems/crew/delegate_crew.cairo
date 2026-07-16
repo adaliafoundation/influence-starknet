@@ -34,7 +34,7 @@ mod DelegateCrew {
         let mut crew_data = components::get::<Crew>(caller_crew.path()).expect(errors::CREW_NOT_FOUND);
 
         // Ensure caller owns the crew
-        let contract_address = contracts::get('Crew');
+        let _contract_address = contracts::get('Crew');
         nft::assert_owner('Crew', caller_crew, context.caller);
 
         // Delegate to the new address and update

@@ -55,12 +55,12 @@ impl ExchangeTypeImpl of ExchangeTypeTrait {
 impl StoreExchangeType of Store<ExchangeType> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<ExchangeType> {
-        return StoreExchangeType::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: ExchangeType) -> SyscallResult<()> {
-        return StoreExchangeType::write_at_offset(address_domain, base, 0, value);
+        return Self::write_at_offset(address_domain, base, 0, value);
     }
 
     #[inline(always)]
@@ -109,7 +109,7 @@ mod tests {
         let base = starknet::storage_base_address_from_felt252(42);
         let mut to_store = ExchangeType { allowed_products: 65000 };
 
-        StoreExchangeType::write(0, base, to_store);
+        StoreExchangeType::write(0, base, to_store).unwrap_syscall();
         let mut to_read = StoreExchangeType::read(0, base).unwrap();
         assert(to_read.allowed_products == 65000, 'wrong allowed_products');
     }

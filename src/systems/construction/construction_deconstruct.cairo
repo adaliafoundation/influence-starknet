@@ -96,11 +96,11 @@ mod ConstructionDeconstruct {
             dry_dock.assert_ready(context.now);
             components::set::<DryDock>(path.span(), dry_dock);
         } else if building_data.building_type == building_types::SPACEPORT {
-            let mut dock = components::get::<Dock>(path.span()).expect(errors::DOCK_NOT_FOUND);
+            let mut _dock = components::get::<Dock>(path.span()).expect(errors::DOCK_NOT_FOUND);
         } else if building_data.building_type == building_types::MARKETPLACE {
-            let exchange = components::get::<Exchange>(path.span()).expect(errors::EXCHANGE_NOT_FOUND);
+            let _exchange = components::get::<Exchange>(path.span()).expect(errors::EXCHANGE_NOT_FOUND);
         } else if building_data.building_type == building_types::HABITAT {
-            let station = components::get::<Station>(path.span()).expect(errors::STATION_NOT_FOUND);
+            let _station = components::get::<Station>(path.span()).expect(errors::STATION_NOT_FOUND);
         } else if building_data.building_type == building_types::TANK_FARM {
             path.append(2); // inventory slot
             let mut inventory = components::get::<Inventory>(path.span()).expect(errors::INVENTORY_NOT_FOUND);

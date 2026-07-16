@@ -24,7 +24,7 @@ fn next_id(scope: felt252) -> u64 {
     let address = starknet::storage_address_from_base_and_offset(base, 0);
     let previous_id = starknet::storage_read_syscall(0, address).unwrap_syscall();
     let next_id = previous_id + 1;
-    starknet::storage_write_syscall(0, address, next_id);
+    starknet::storage_write_syscall(0, address, next_id).unwrap_syscall();
     return next_id.try_into().unwrap();
 }
 

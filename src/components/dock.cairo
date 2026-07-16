@@ -53,12 +53,12 @@ impl DockImpl of DockTrait {
 impl StoreDock of Store<Dock> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<Dock> {
-        return StoreDock::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: Dock) -> SyscallResult<()> {
-        return StoreDock::write_at_offset(address_domain, base, 0, value);
+        return Self::write_at_offset(address_domain, base, 0, value);
     }
 
     #[inline(always)]
@@ -111,13 +111,13 @@ mod tests {
         let base = starknet::storage_base_address_from_felt252(42);
         let mut dock = DockTrait::new(1);
 
-        StoreDock::write(0, base, dock);
+        StoreDock::write(0, base, dock).unwrap_syscall();
         let mut read_dock = StoreDock::read(0, base).unwrap();
         assert(read_dock.docked_ships == 0, 'wrong docked ships');
 
         dock.docked_ships = 50;
         dock.ready_at = 68719476735;
-        StoreDock::write(0, base, dock);
+        StoreDock::write(0, base, dock).unwrap_syscall();
         read_dock = StoreDock::read(0, base).unwrap();
         assert(read_dock.docked_ships == 50, 'wrong num ships');
         assert(read_dock.ready_at == 68719476735, 'wrong ready at');

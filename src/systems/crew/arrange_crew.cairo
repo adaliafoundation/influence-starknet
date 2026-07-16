@@ -102,7 +102,7 @@ mod tests {
         config::set('TIME_ACCELERATION', 24);
         starknet::testing::set_block_timestamp(100);
 
-        let asteroid = influence::test::mocks::asteroid();
+        let _asteroid = influence::test::mocks::asteroid();
         let crew = influence::test::mocks::delegated_crew(1, 'PLAYER');
         let station = influence::test::mocks::public_habitat(crew, 37);
         components::set::<Location>(crew.path(), LocationTrait::new(station));
@@ -132,7 +132,7 @@ mod tests {
         config::set('TIME_ACCELERATION', 24);
         starknet::testing::set_block_timestamp(100);
 
-        let asteroid = influence::test::mocks::asteroid();
+        let _asteroid = influence::test::mocks::asteroid();
         let crew = influence::test::mocks::delegated_crew(1, 'PLAYER');
         let station = influence::test::mocks::public_habitat(crew, 37);
         components::set::<Location>(crew.path(), LocationTrait::new(station));
@@ -157,7 +157,7 @@ mod tests {
         config::set('TIME_ACCELERATION', 24);
         starknet::testing::set_block_timestamp(100);
 
-        let asteroid = influence::test::mocks::asteroid();
+        let _asteroid = influence::test::mocks::asteroid();
         let crew = influence::test::mocks::delegated_crew(1, 'PLAYER');
         let station = influence::test::mocks::public_habitat(crew, 37);
         components::set::<Location>(crew.path(), LocationTrait::new(station));

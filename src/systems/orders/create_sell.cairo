@@ -134,7 +134,7 @@ mod CreateSellOrder {
         assert(price != 0, 'price must be positive');
         let market_crew = components::get::<Control>(exchange.path()).expect(errors::CONTROL_NOT_FOUND).controller;
         let mut market_crew_details = CrewDetailsTrait::new(market_crew);
-        let mut market_crew_data = market_crew_details.component;
+        let mut _market_crew_data = market_crew_details.component;
         let enforce_eff = market_crew_details.bonus(modifier_types::MARKETPLACE_FEE_ENFORCEMENT, context.now);
         let maker_eff = crew_details.bonus(modifier_types::MARKETPLACE_FEE_REDUCTION, context.now);
         let maker_fee = adjusted_fee(exchange_data.maker_fee, maker_eff, enforce_eff);

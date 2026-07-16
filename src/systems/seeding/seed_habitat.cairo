@@ -149,9 +149,9 @@ mod SeedHabitat {
         let mut roster: Array<u64> = Default::default();
 
         // Add five crewmates to crew
-        let status = crewmate_statuses::INITIALIZED;
-        let collection = collections::ADALIAN;
-        let title = titles::ADALIAN_PRIME_COUNCIL;
+        let _status = crewmate_statuses::INITIALIZED;
+        let _collection = collections::ADALIAN;
+        let _title = titles::ADALIAN_PRIME_COUNCIL;
 
         let mut c: Array<u64> = Default::default();
         c.append(crewmate_traits::DRIVE_SURVIVAL);

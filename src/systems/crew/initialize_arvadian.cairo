@@ -92,7 +92,7 @@ mod InitializeArvadian {
         // Mint and delegate new crew if uninitialized
         assert(caller_crew.label == entities::CREW, errors::INCORRECT_ENTITY_TYPE);
         if components::get::<Crew>(caller_crew.path()).is_none() {
-            let (new_crew, crew_data) = create_crew(station, context.caller);
+            let (new_crew, _crew_data) = create_crew(station, context.caller);
             caller_crew = new_crew;
         }
 
@@ -452,7 +452,7 @@ mod InitializeArvadian {
 
     // Crew assignment impactful trait #2
     fn assert_arvad_class_dependent(class: u64, t: u64) {
-        let mut valid = false;
+        let mut _valid = false;
 
         if class == classes::PILOT {
             if t == crewmate_traits::BUSTER {

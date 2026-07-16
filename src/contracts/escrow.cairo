@@ -44,7 +44,9 @@ mod Escrow {
     use array::{ArrayTrait, SpanTrait};
     use clone::Clone;
     use option::OptionTrait;
+    use result::{Result, ResultTrait};
     use starknet::{ContractAddress, call_contract_syscall, replace_class_syscall, ClassHash};
+    use starknet::storage::Map;
     use traits::{Into, TryInto};
     use zeroable::Zeroable;
 
@@ -65,10 +67,17 @@ mod Escrow {
         }
     }
 
+    fn unwrap_call_result(result: Result<Span<felt252>, Array<felt252>>) -> Span<felt252> {
+        match result {
+            Result::Ok(response) => response,
+            Result::Err(error) => panic(error)
+        }
+    }
+
     #[storage]
     struct Storage {
-        balances: LegacyMap::<felt252, u256>,
-        forced_withdrawal: LegacyMap::<felt252, u64>,
+        balances: Map::<felt252, u256>,
+        forced_withdrawal: Map::<felt252, u64>,
         reentrancy_guard: bool
     }
 
@@ -140,8 +149,9 @@ mod Escrow {
             calldata.append(hook_type::DEPOSIT.into());
             calldata.append(token.into());
             serde::Serde::<u256>::serialize(@amount, ref calldata);
-            call_contract_syscall(deposit_hook.contract, deposit_hook.entry_point_selector, calldata.span())
-                .unwrap_syscall();
+            unwrap_call_result(
+                call_contract_syscall(deposit_hook.contract, deposit_hook.entry_point_selector, calldata.span())
+            );
         }
 
         // Transfer tokens from the caller to the escrow contract (must be pre-approved)
@@ -185,7 +195,7 @@ mod Escrow {
         assert(self.forced_withdrawal.read(order_id).is_zero(), 'locked for forced withdrawal');
 
         // Transfer tokens to each recipient
-        let escrow_contract = starknet::get_contract_address();
+        let _escrow_contract = starknet::get_contract_address();
         let erc20 = IERC20Dispatcher { contract_address: token };
 
         let mut iter = 0;
@@ -211,8 +221,9 @@ mod Escrow {
         calldata.append(hook_type::WITHDRAW.into());
         calldata.append(token.into());
         serde::Serde::<Span<Withdrawal>>::serialize(@withdrawals, ref calldata);
-        call_contract_syscall(withdraw_hook.contract, withdraw_hook.entry_point_selector, calldata.span())
-            .unwrap_syscall();
+        unwrap_call_result(
+            call_contract_syscall(withdraw_hook.contract, withdraw_hook.entry_point_selector, calldata.span())
+        );
 
         // Update the balance
         self.balances.write(order_id, self.balances.read(order_id) - total_amount);
@@ -271,7 +282,7 @@ mod Escrow {
 
         // Send the tokens to the original caller
         let amount = self.balances.read(order_id);
-        let escrow_contract = starknet::get_contract_address();
+        let _escrow_contract = starknet::get_contract_address();
         IERC20Dispatcher { contract_address: token }.transfer(caller, amount);
 
         // Update the balance
@@ -300,10 +311,11 @@ mod Escrow {
 #[starknet::contract]
 mod ERC20 {
     use starknet::ContractAddress;
+    use starknet::storage::Map;
 
     #[storage]
     struct Storage {
-        balances: LegacyMap::<ContractAddress, u256>
+        balances: Map::<ContractAddress, u256>
     }
 
     #[external(v0)]
@@ -387,7 +399,7 @@ mod tests {
             ERC20::TEST_CLASS_HASH.try_into().unwrap(), 0, constructor_data.span(), false
         ).unwrap();
 
-        let erc20 = IERC20Dispatcher { contract_address: erc20_address };
+        let _erc20 = IERC20Dispatcher { contract_address: erc20_address };
 
         // Deploy mock validator
         let (validator_address, _) = deploy_syscall(
@@ -458,7 +470,7 @@ mod tests {
         let (erc20_address, _, withdraw_hook, deposit_hook) = default_setup();
 
         // Test the deposit
-        let depositor = starknet::contract_address_const::<'DEPOSITOR'>();
+        let _depositor = starknet::contract_address_const::<'DEPOSITOR'>();
         let mut state = Escrow::contract_state_for_testing();
         Escrow::deposit(ref state, erc20_address, 100, withdraw_hook, deposit_hook);
     }
@@ -469,14 +481,15 @@ mod tests {
     fn test_no_withdraw_hook() {
         let (erc20_address, _, _, deposit_hook) = default_setup();
 
+        let calldata: Array<felt252> = Default::default();
         let withdraw_hook = Hook {
             contract: starknet::contract_address_const::<0>(),
             entry_point_selector: 0,
-            calldata: Default::default().span()
+            calldata: calldata.span()
         };
 
         // Test the deposit
-        let depositor = starknet::contract_address_const::<'DEPOSITOR'>();
+        let _depositor = starknet::contract_address_const::<'DEPOSITOR'>();
         let mut state = Escrow::contract_state_for_testing();
         Escrow::deposit(ref state, erc20_address, 100, withdraw_hook, deposit_hook);
     }
@@ -497,7 +510,7 @@ mod tests {
 
         // Test the deposit
         starknet::testing::set_contract_address(starknet::contract_address_const::<'DEPLOYER'>());
-        let depositor = starknet::contract_address_const::<'DEPOSITOR'>();
+        let _depositor = starknet::contract_address_const::<'DEPOSITOR'>();
         let mut state = Escrow::contract_state_for_testing();
         Escrow::deposit(ref state, erc20_address, 100, withdraw_hook, deposit_hook);
     }

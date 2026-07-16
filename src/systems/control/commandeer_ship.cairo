@@ -39,7 +39,7 @@ mod CommandeerShip {
         let mut crew_data = crew_details.component;
 
         // Ensure the caller owns the ship
-        let contract_address = contracts::get('Ship');
+        let _contract_address = contracts::get('Ship');
         nft::assert_owner('Ship', ship, context.caller);
 
         // If present on a ship in flight, update crew ready time

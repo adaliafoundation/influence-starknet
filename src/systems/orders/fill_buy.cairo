@@ -254,7 +254,7 @@ mod FillBuyOrder {
         let ast = components::get::<Celestial>(EntityTrait::new(entities::ASTEROID, origin_ast).path())
             .expect(errors::CELESTIAL_NOT_FOUND);
 
-        let (exchange_ast, exchange_lot) = exchange.to_position();
+        let (_exchange_ast, exchange_lot) = exchange.to_position();
         let origin_to_exchange = position::hopper_travel_time(
             origin_lot, exchange_lot, ast.radius, hopper_eff, dist_eff
         );

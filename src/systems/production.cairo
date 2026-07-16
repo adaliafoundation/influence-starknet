@@ -183,7 +183,7 @@ mod tests {
         ].span();
 
         let secondary_mod = FixedTrait::new(6442450944, false); // 1.5
-        let actual = outputs(outputs, 4, FixedTrait::new(45097156608, false), secondary_mod); // 10.5
+        let _actual = outputs(outputs, 4, FixedTrait::new(45097156608, false), secondary_mod); // 10.5
     }
 
     #[test]

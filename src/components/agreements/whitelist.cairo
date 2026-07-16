@@ -44,12 +44,12 @@ impl WhitelistAgreementImpl of WhitelistAgreementTrait {
 impl StoreWhitelistAgreement of Store<WhitelistAgreement> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<WhitelistAgreement> {
-        return StoreWhitelistAgreement::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: WhitelistAgreement) -> SyscallResult<()> {
-        return StoreWhitelistAgreement::write_at_offset(
+        return Self::write_at_offset(
             address_domain, base, 0, value
         );
     }
@@ -98,7 +98,7 @@ mod tests {
         let mut agreement = WhitelistAgreementTrait::new(true);
         let base = starknet::storage_base_address_from_felt252(42);
 
-        Store::<WhitelistAgreement>::write(0, base, agreement);
+        Store::<WhitelistAgreement>::write(0, base, agreement).unwrap_syscall();
         let mut read_agreement = Store::<WhitelistAgreement>::read(0, base).unwrap_syscall();
         assert(read_agreement.whitelisted, 'should be whitelisted');
     }

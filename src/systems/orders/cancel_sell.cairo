@@ -86,7 +86,7 @@ mod CancelSellOrder {
 
         // Calculate transfer time
         let (exchange_ast, exchange_lot) = exchange.to_position();
-        let (dest_ast, dest_lot) = storage.to_position();
+        let (_dest_ast, dest_lot) = storage.to_position();
         let eff = crew_details.bonus(modifier_types::HOPPER_TRANSPORT_TIME, context.now);
         let dist_eff = crew_details.bonus(modifier_types::FREE_TRANSPORT_DISTANCE, context.now);
         let ast = components::get::<Celestial>(EntityTrait::new(entities::ASTEROID, exchange_ast).path())

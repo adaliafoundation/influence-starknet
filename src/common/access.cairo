@@ -135,7 +135,7 @@ fn can_until(permitted: Entity, target: Entity, permission: u64, until: u64) -> 
     // If a prepaid agreement is set and un-expired return true
     match components::get::<PrepaidAgreement>(agreement_path) {
         Option::Some(prepaid_data) => {
-            let now = starknet::info::get_block_timestamp();
+            let _now = starknet::info::get_block_timestamp();
             let invalid_time = max(prepaid_data.end_time, prepaid_data.notice_time + prepaid_data.notice_period);
             if until <= invalid_time { return true; }
         },

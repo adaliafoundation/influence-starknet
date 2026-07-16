@@ -56,12 +56,12 @@ impl DryDockTypeImpl of DryDockTypeTrait {
 impl StoreDryDockType of Store<DryDockType> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<DryDockType> {
-        return StoreDryDockType::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: DryDockType) -> SyscallResult<()> {
-        return StoreDryDockType::write_at_offset(address_domain, base, 0, value);
+        return Self::write_at_offset(address_domain, base, 0, value);
     }
 
     #[inline(always)]
@@ -112,7 +112,7 @@ mod tests {
         let base = starknet::storage_base_address_from_felt252(42);
         let mut to_store = DryDockType { max_mass: 1125899906842623, max_volume: 1125899906842622 };
 
-        StoreDryDockType::write(0, base, to_store);
+        StoreDryDockType::write(0, base, to_store).unwrap_syscall();
         let mut to_read = StoreDryDockType::read(0, base).unwrap();
         assert(to_read.max_mass == 1125899906842623, 'wrong max_mass');
         assert(to_read.max_volume == 1125899906842622, 'wrong max_volume');

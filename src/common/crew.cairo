@@ -5,7 +5,7 @@ use starknet::ContractAddress;
 use traits::{Into, TryInto};
 
 use cubit::f64::{Fixed, FixedTrait, HALF, ONE};
-use cubit::f64::{core::pow_int, comp::{min, max}};
+use cubit::f64::comp::{min, max};
 
 use influence::{components, config};
 use influence::components::{ComponentTrait, Building, BuildingTrait, Crew, CrewTrait, Location, LocationTrait, Ship,
@@ -255,7 +255,7 @@ impl CrewDetailsImpl of CrewDetailsTrait {
     }
 
     fn assert_building_operational(ref self: CrewDetails) {
-        let (station, station_data) = self.station();
+        let (station, _station_data) = self.station();
 
         // If station (crew or ship) is in a building, check that it is operational
         // Otherwise the ship is in orbit, on a lot, or in space, so ignore
@@ -280,7 +280,7 @@ impl CrewDetailsImpl of CrewDetailsTrait {
     }
 
     fn assert_not_in_emergency(ref self: CrewDetails) {
-        let (ship, ship_data) = self.ship();
+        let (_ship, ship_data) = self.ship();
         assert(ship_data.emergency_at == 0, errors::EMERGENCY_ACTIVE);
     }
 
@@ -310,7 +310,7 @@ fn _hydrate_roster(roster: Span<u64>) -> Span<Crewmate> {
 
 // Converts the title id to an Arvad department and rank
 fn _to_department(title: u64) -> (felt252, u64) {
-    let mut rank: u64 = 0;
+    let mut _rank: u64 = 0;
 
     if (title == 0) || (title > 65) { return (0, 0); }
     let (div, rem) = integer::u64_safe_divmod(title - 1, 13_u64.try_into().unwrap());
@@ -367,7 +367,7 @@ fn from_crewmates(config: ModifierType, crewmates: Span<Crewmate>) -> Fixed {
         }
 
         // Calculate trait efficiency
-        let mut jter = 0;
+        let mut _jter = 0;
         if crewmate.impactful.contains(config.trait_type) {
             trait_eff += config.trait_eff * DMIL;
         }
@@ -381,7 +381,7 @@ fn from_crewmates(config: ModifierType, crewmates: Span<Crewmate>) -> Fixed {
     if config.class != 0 {
         let half = FixedTrait::new(HALF, false); // 0.5
         let three_halves = FixedTrait::new(6442450944, false); // 1.5
-        result *= three_halves - pow_int(half, class_matches, false);
+        result *= three_halves - half.pow(FixedTrait::new_unscaled(class_matches, false));
     }
 
     return result;
@@ -470,6 +470,7 @@ mod tests {
     fn test_from_crewmates() {
         let mut crewmates: Array<Crewmate> = Default::default();
         let impactful: Array<u64> = array![crewmate_traits::SURVEYOR];
+        let cosmetic: Array<u64> = Default::default();
         crewmates.append(Crewmate {
             status: 1,
             collection: collections::ARVAD_SPECIALIST,
@@ -477,9 +478,10 @@ mod tests {
             title: titles::BLOCK_CAPTAIN,
             appearance: 0,
             impactful: impactful.span(),
-            cosmetic: Default::default().span()
+            cosmetic: cosmetic.span()
         });
 
+        let cosmetic: Array<u64> = Default::default();
         crewmates.append(Crewmate {
             status: 1,
             collection: collections::ARVAD_SPECIALIST,
@@ -487,7 +489,7 @@ mod tests {
             title: titles::BLOCK_CAPTAIN,
             appearance: 0,
             impactful: impactful.span(),
-            cosmetic: Default::default().span()
+            cosmetic: cosmetic.span()
         });
 
         // Add modifier configs
@@ -502,6 +504,7 @@ mod tests {
 
         // Test without class affinity
         let mut crewmates2: Array<Crewmate> = Default::default();
+        let cosmetic: Array<u64> = Default::default();
         crewmates2.append(Crewmate {
             status: 1,
             collection: collections::ADALIAN,
@@ -509,7 +512,7 @@ mod tests {
             title: 0,
             appearance: 0,
             impactful: array![crewmate_traits::LOGISTICIAN].span(),
-            cosmetic: Default::default().span()
+            cosmetic: cosmetic.span()
         });
 
         eff = super::from_crewmates(
@@ -562,6 +565,7 @@ mod tests {
         components::set::<Crew>(crew.path(), crew_data);
 
         let mut crewmates: Array<Crewmate> = Default::default();
+        let cosmetic: Array<u64> = Default::default();
         crewmates.append(Crewmate {
             status: 1,
             collection: collections::ADALIAN,
@@ -569,7 +573,7 @@ mod tests {
             title: 0,
             appearance: 0,
             impactful: array![crewmate_traits::LOGISTICIAN].span(),
-            cosmetic: Default::default().span()
+            cosmetic: cosmetic.span()
         });
 
         components::set::<Crewmate>(EntityTrait::new(entities::CREWMATE, 1).path(), *crewmates.at(0));
@@ -689,14 +693,16 @@ mod tests {
         config::set('LAUNCH_TIME', 1000);
 
         let mut crewmates: Array<Crewmate> = Default::default();
+        let impactful: Array<u64> = Default::default();
+        let cosmetic: Array<u64> = Default::default();
         crewmates.append(Crewmate {
             status: 1,
             collection: collections::ADALIAN,
             class: classes::MINER,
             title: 0,
             appearance: 0,
-            impactful: Default::default().span(),
-            cosmetic: Default::default().span()
+            impactful: impactful.span(),
+            cosmetic: cosmetic.span()
         });
 
         let crew = EntityTrait::new(entities::CREW, 1);

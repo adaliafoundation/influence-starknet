@@ -78,7 +78,7 @@ mod FillSellOrder {
         // Check that crew is delegated, and ready
         let mut crew_details = CrewDetailsTrait::new(caller_crew);
         crew_details.assert_all_but_ready(context.caller, context.now);
-        let mut crew_data = crew_details.component;
+        let mut _crew_data = crew_details.component;
         caller_crew.assert_can(exchange, permissions::BUY);
 
         // Get the order data and validate
@@ -168,7 +168,7 @@ mod FillSellOrder {
         let ast = components::get::<Celestial>(EntityTrait::new(entities::ASTEROID, dest_ast).path())
             .expect(errors::CELESTIAL_NOT_FOUND);
 
-        let (exchange_ast, exchange_lot) = exchange.to_position();
+        let (_exchange_ast, exchange_lot) = exchange.to_position();
         let exchange_to_dest = position::hopper_travel_time(exchange_lot, dest_lot, ast.radius, hopper_eff, dist_eff);
 
         // Resreve destination inventory space and create delivery

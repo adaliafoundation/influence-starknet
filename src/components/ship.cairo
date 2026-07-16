@@ -118,12 +118,12 @@ impl ShipImpl of ShipTrait {
 impl StoreShip of Store<Ship> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<Ship> {
-        return StoreShip::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: Ship) -> SyscallResult<()> {
-        return StoreShip::write_at_offset(address_domain, base, 0, value);
+        return Self::write_at_offset(address_domain, base, 0, value);
     }
 
     #[inline(always)]
@@ -171,7 +171,7 @@ impl StoreShip of Store<Ship> {
         pack_u128(ref second, packed::EXP2_0, packed::EXP2_80, value.transit_destination.into());
         pack_u128(ref low, packed::EXP2_72, packed::EXP2_40, value.transit_arrival.into());
 
-        Store::<u128>::write_at_offset(address_domain, base, offset + 1, second);
+        Store::<u128>::write_at_offset(address_domain, base, offset + 1, second).unwrap_syscall();
         let combined = low.into() + high.into() * packed::EXP2_128;
         return Store::<felt252>::write_at_offset(address_domain, base, offset, combined);
     }
@@ -214,7 +214,7 @@ mod tests {
             transit_departure: 21775405632,
             transit_destination: EntityTrait::new(3, 1),
             transit_arrival: 21806768832
-        });
+        }).unwrap_syscall();
 
         let mut read_ship = StoreShip::read(0, base).unwrap();
         assert(read_ship.ship_type == ship_types::LIGHT_TRANSPORT, 'wrong ship type');

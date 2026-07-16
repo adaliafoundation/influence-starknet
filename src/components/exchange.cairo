@@ -41,12 +41,14 @@ trait ExchangeTrait {
 
 impl ExchangeImpl of ExchangeTrait {
     fn new(exchange_type: u64) -> Exchange {
+        let allowed_products: Array<u64> = Default::default();
+
         return Exchange {
             exchange_type: exchange_type,
             maker_fee: 0,
             taker_fee: 0,
             orders: 0,
-            allowed_products: Default::default().span()
+            allowed_products: allowed_products.span()
         };
     }
 }
@@ -137,11 +139,11 @@ fn unpack_product_u128s(mut elements: Span<u128>) -> Span<u64> {
 
 impl StoreExchange of Store<Exchange> {
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<Exchange> {
-        return StoreExchange::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     fn write(address_domain: u32, base: StorageBaseAddress, value: Exchange) -> SyscallResult<()> {
-        return StoreExchange::write_at_offset(address_domain, base, 0, value);
+        return Self::write_at_offset(address_domain, base, 0, value);
     }
 
     fn read_at_offset(address_domain: u32, base: StorageBaseAddress, offset: u8) -> SyscallResult<Exchange> {
@@ -185,7 +187,7 @@ impl StoreExchange of Store<Exchange> {
                 combined += (*packed_elements.pop_front().unwrap()).into() * packed::EXP2_128;
             }
 
-            Store::<felt252>::write_at_offset(address_domain, base, offset + iter + 1, combined);
+            Store::<felt252>::write_at_offset(address_domain, base, offset + iter + 1, combined).unwrap_syscall();
             iter += 1;
         };
 
@@ -196,7 +198,7 @@ impl StoreExchange of Store<Exchange> {
         pack_u128(ref low, packed::EXP2_40, packed::EXP2_16, value.taker_fee.into());
         pack_u128(ref low, packed::EXP2_56, packed::EXP2_32, value.orders.into());
 
-        Store::<u128>::write_at_offset(address_domain, base, offset, low);
+        Store::<u128>::write_at_offset(address_domain, base, offset, low).unwrap_syscall();
         return Result::Ok(());
     }
 
@@ -233,7 +235,7 @@ mod tests {
             allowed_products: allowed_products.span()
         };
 
-        StoreExchange::write(0, base, write_exchange);
+        StoreExchange::write(0, base, write_exchange).unwrap_syscall();
         let read_exchange = StoreExchange::read(0, base).unwrap();
         assert(read_exchange.exchange_type == 212, 'exchange type wrong');
         assert(read_exchange.maker_fee == 25, 'maker fee wrong');
@@ -257,7 +259,7 @@ mod tests {
             allowed_products: allowed_products.span()
         };
 
-        StoreExchange::write(0, base, write_exchange);
+        StoreExchange::write(0, base, write_exchange).unwrap_syscall();
         let read_exchange = StoreExchange::read(0, base).unwrap();
         assert(read_exchange.exchange_type == 1, 'exchange type wrong');
         assert(read_exchange.maker_fee == 0, 'maker fee wrong');

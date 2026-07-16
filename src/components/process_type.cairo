@@ -297,12 +297,12 @@ impl ProcessTypeImpl of ProcessTypeTrait {
 impl StoreProcessType of Store<ProcessType> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<ProcessType> {
-        return StoreProcessType::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: ProcessType) -> SyscallResult<()> {
-        return StoreProcessType::write_at_offset(address_domain, base, 0, value);
+        return Self::write_at_offset(address_domain, base, 0, value);
     }
 
     #[inline(always)]
@@ -406,7 +406,7 @@ mod tests {
             outputs: outputs.span()
         };
 
-        StoreProcessType::write(0, base, to_store);
+        StoreProcessType::write(0, base, to_store).unwrap_syscall();
         let mut to_read = StoreProcessType::read(0, base).unwrap();
         assert(to_read.setup_time == 1209600, 'wrong setup time');
         assert(to_read.recipe_time == 464400, 'wrong recipe time');

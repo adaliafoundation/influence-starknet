@@ -1,4 +1,7 @@
 import ContractConfig from './ContractConfig.js';
+import { estimateDeclare, isDryRun, txOptions } from './dryRun.js';
+import { updateAcceptedBaseline } from './baseline.js';
+import { hash } from 'starknet';
 
 export const parseConstructorArgs = (contractName, account, network) => {
   const config = new ContractConfig(network);
@@ -30,10 +33,18 @@ export const loadOrDeployContract = async ({
     contractAddress = contract.address;
     console.log(`${contractName} already deployed`);
   } catch (e) {
+    if (isDryRun(options)) {
+      const sierra = contracts.sierra(contractName);
+      classHash = options.computedClassHash || hash.computeContractClassHash(sierra);
+      await estimateDeclare({ contracts, contractName, account, options, classHash });
+      console.log(`[dry-run] Contract ${contractName} is not deployed; would deploy after declaration`);
+      return { classHash, contractAddress: null, contract: null, needsDeploy: true };
+    }
+
     const res = await contracts.declareAndDeploy(
       contractName,
       { account, constructorArgs: parseConstructorArgs(contractName, account, networkName) },
-      options
+      txOptions(options)
     );
 
     if (res.declare?.transaction_hash) {
@@ -47,6 +58,7 @@ export const loadOrDeployContract = async ({
     classHash = res.declare.class_hash;
     contractAddress = res.deploy.address;
     contract = contracts.deployed(contractName);
+    updateAcceptedBaseline({ contracts, contractName, classHash });
 
     console.log(`Contract ${contractName} declared with hash: ${classHash}`);
     console.log(`Contract ${contractName} deployed at: ${contractAddress}`);
@@ -62,8 +74,12 @@ export const declareIfNeeded = async ({
   options = {},
   classHash
 }) => {
+  if (isDryRun(options)) {
+    return await estimateDeclare({ contracts, contractName, account, options, classHash });
+  }
+
   try {
-    const res = await contracts.declare(contractName, { account }, options);
+    const res = await contracts.declare(contractName, { account }, txOptions(options));
     await account.waitForTransaction(res.transaction_hash);
     console.log(`Contract ${contractName} declared with hash: ${classHash}`);
   } catch (e) {

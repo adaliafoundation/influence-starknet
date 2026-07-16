@@ -4,8 +4,10 @@ mod Dispatcher {
     use clone::Clone;
     use serde::Serde;
     use option::{Option, OptionTrait};
-    use starknet::{ClassHash, ContractAddress};
+    use result::ResultTrait;
+    use starknet::{ClassHash, ContractAddress, SyscallResultTrait};
     use starknet::class_hash::Felt252TryIntoClassHash;
+    use starknet::storage::Map;
     use starknet::syscalls::{library_call_syscall, replace_class_syscall};
     use traits::{Into, TryInto};
 
@@ -20,10 +22,10 @@ mod Dispatcher {
     #[storage]
     struct Storage {
         admin: ContractAddress,
-        constants: LegacyMap::<felt252, felt252>, // name -> constant (game constants)
-        contract_registry: LegacyMap::<felt252, ContractAddress>,
-        role_grants: LegacyMap::<(ContractAddress, u64), bool>,
-        system_registry: LegacyMap::<felt252, ClassHash>
+        constants: Map::<felt252, felt252>, // name -> constant (game constants)
+        contract_registry: Map::<felt252, ContractAddress>,
+        role_grants: Map::<(ContractAddress, u64), bool>,
+        system_registry: Map::<felt252, ClassHash>
     }
 
     #[derive(Copy, Drop, starknet::Event)]
@@ -91,7 +93,7 @@ mod Dispatcher {
     #[external(v0)]
     fn upgrade(ref self: ContractState, class_hash: ClassHash) {
         assert_admin(@self);
-        replace_class_syscall(class_hash);
+        replace_class_syscall(class_hash).unwrap_syscall();
     }
 
     // Manage game constants
@@ -155,7 +157,7 @@ mod Dispatcher {
 
         let class_hash = self.system_registry.read(name);
         let entrypoint = 0x17655d3ec0a25c443f877d52bb6b36e9e6aaf8fbeb43608c3b9423bdc0822be; // run
-        return library_call_syscall(class_hash.into(), entrypoint, calldata.span()).unwrap_syscall();
+        return library_call_syscall(class_hash.into(), entrypoint, calldata.span()).unwrap();
     }
 
     #[external(v0)]
@@ -176,7 +178,7 @@ mod Dispatcher {
 
         let class_hash = self.system_registry.read(name);
         let entrypoint = 0x17655d3ec0a25c443f877d52bb6b36e9e6aaf8fbeb43608c3b9423bdc0822be; // run
-        return library_call_syscall(class_hash.into(), entrypoint, calldata.span()).unwrap_syscall();
+        return library_call_syscall(class_hash.into(), entrypoint, calldata.span()).unwrap();
     }
 
     fn assert_admin(self: @ContractState) {
@@ -222,7 +224,7 @@ mod tests {
 
         starknet::testing::set_caller_address(starknet::contract_address_const::<'PLAYER'>());
         let mut state = Dispatcher::contract_state_for_testing();
-        let res = Dispatcher::run_system(ref state, 'ChangeName', run_calldata);
+        let _res = Dispatcher::run_system(ref state, 'ChangeName', run_calldata);
     }
 
     #[test]
@@ -252,7 +254,7 @@ mod tests {
 
         // Switch to call from SWAY contract context
         starknet::testing::set_caller_address(starknet::contract_address_const::<'SWAY'>());
-        let res = Dispatcher::run_system_with_payment(ref state, 'ChangeName', run_calldata, payment);
+        let _res = Dispatcher::run_system_with_payment(ref state, 'ChangeName', run_calldata, payment);
     }
 
     #[test]

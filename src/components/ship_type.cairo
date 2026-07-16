@@ -71,12 +71,12 @@ impl ShipTypeImpl of ShipTypeTrait {
 impl StoreShipType of Store<ShipType> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<ShipType> {
-        return StoreShipType::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: ShipType) -> SyscallResult<()> {
-        return StoreShipType::write_at_offset(address_domain, base, 0, value);
+        return Self::write_at_offset(address_domain, base, 0, value);
     }
 
     #[inline(always)]
@@ -182,7 +182,7 @@ mod tests {
             station_type: 262143
         };
 
-        StoreShipType::write(0, base, to_store);
+        StoreShipType::write(0, base, to_store).unwrap_syscall();
         let mut to_read = StoreShipType::read(0, base).unwrap();
         assert(to_read.cargo_inventory_type == 262143, 'wrong cargo_inventory_type');
         assert(to_read.cargo_slot == 255, 'wrong cargo_slot');

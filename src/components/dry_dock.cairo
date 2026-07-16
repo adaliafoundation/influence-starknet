@@ -67,12 +67,12 @@ impl DryDockImpl of DryDockTrait {
 impl StoreDryDock of Store<DryDock> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<DryDock> {
-        return StoreDryDock::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: DryDock) -> SyscallResult<()> {
-        return StoreDryDock::write_at_offset(address_domain, base, 0, value);
+        return Self::write_at_offset(address_domain, base, 0, value);
     }
 
     #[inline(always)]
@@ -137,7 +137,7 @@ mod tests {
             finish_time: 0
         };
 
-        StoreDryDock::write(0, base, dry_dock);
+        StoreDryDock::write(0, base, dry_dock).unwrap_syscall();
         let mut read_dry_dock = StoreDryDock::read(0, base).unwrap();
         assert(read_dry_dock.dry_dock_type == types::BASIC, 'wrong type');
         assert(read_dry_dock.status == statuses::IDLE, 'wrong status');
