@@ -76,7 +76,7 @@ fn F_to_M(F: Fixed, ecc: Fixed) -> Fixed {
 // @param M Mean anomaly (rad)
 // @param ecc Eccentricity
 fn M_to_E(M: Fixed, ecc: Fixed) -> Fixed {
-    let zero = FixedTrait::ZERO();
+    let _zero = FixedTrait::ZERO();
     let mut E = M;
 
     if M < FixedTrait::ZERO() {

@@ -65,7 +65,8 @@ mod AcceptPrepaidAgreement {
         let mut controller_crew = EntityTrait::new(entities::CREW, 0);
         let (target_ast, _) = target.to_position();
         let mut asteroid = EntityTrait::new(entities::ASTEROID, target_ast);
-        let mut policy_path: Span<felt252> = Default::default().span();
+        let empty_policy_path: Array<felt252> = Default::default();
+        let mut policy_path: Span<felt252> = empty_policy_path.span();
 
         if target.label == entities::LOT {
             assert(permission == permissions::USE_LOT, 'invalid permission');

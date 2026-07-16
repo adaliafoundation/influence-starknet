@@ -32,12 +32,12 @@ impl AsteroidSaleComponent of ComponentTrait<AsteroidSale> {
 impl StoreAsteroidSale of Store<AsteroidSale> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<AsteroidSale> {
-        return StoreAsteroidSale::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: AsteroidSale) -> SyscallResult<()> {
-        return StoreAsteroidSale::write_at_offset(address_domain, base, 0, value);
+        return Self::write_at_offset(address_domain, base, 0, value);
     }
 
     #[inline(always)]
@@ -77,7 +77,7 @@ mod tests {
     let base = starknet::storage_base_address_from_felt252(42);
         let sale = AsteroidSale { volume: 25 };
 
-        Store::<AsteroidSale>::write(0, base, sale);
+        Store::<AsteroidSale>::write(0, base, sale).unwrap();
         let read_asteroid_sale = Store::<AsteroidSale>::read(0, base).unwrap();
 
         assert(sale.volume == read_asteroid_sale.volume, 'volume wrong');

@@ -46,7 +46,7 @@ mod ExchangeCrew {
 
         // Get second crew which may be new / empty
         let crew2 = match components::get::<Crew>(_crew2.path()) {
-            Option::Some(data) => _crew2,
+            Option::Some(_data) => _crew2,
             Option::None(_) => {
                 let (crew, _) = create_crew(crew1_details.location(), context.caller);
                 crew
@@ -227,14 +227,16 @@ mod tests {
         starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
         let player = starknet::contract_address_const::<'PLAYER'>();
 
+        let impactful: Array<u64> = Default::default();
+        let cosmetic: Array<u64> = Default::default();
         let default_crewmate = Crewmate {
             status: 1,
             collection: collections::ADALIAN,
             class: classes::MINER,
             title: 0,
             appearance: 0,
-            impactful: Default::default().span(),
-            cosmetic: Default::default().span()
+            impactful: impactful.span(),
+            cosmetic: cosmetic.span()
         };
 
         ICrewmateDispatcher { contract_address: crewmate_address }.mint_with_auto_id(player);
@@ -246,7 +248,7 @@ mod tests {
         ICrewmateDispatcher { contract_address: crewmate_address }.mint_with_auto_id(player);
         components::set::<Crewmate>(EntityTrait::new(entities::CREWMATE, 4).path(), default_crewmate);
 
-        let asteroid = influence::test::mocks::asteroid();
+        let _asteroid = influence::test::mocks::asteroid();
 
         // Add a couple crewmates to crew
         let crew1 = influence::test::mocks::delegated_crew(1, 'PLAYER');
@@ -299,14 +301,16 @@ mod tests {
         starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
         let player = starknet::contract_address_const::<'PLAYER'>();
 
+        let impactful: Array<u64> = Default::default();
+        let cosmetic: Array<u64> = Default::default();
         let default_crewmate = Crewmate {
             status: 1,
             collection: collections::ADALIAN,
             class: classes::MINER,
             title: 0,
             appearance: 0,
-            impactful: Default::default().span(),
-            cosmetic: Default::default().span()
+            impactful: impactful.span(),
+            cosmetic: cosmetic.span()
         };
 
         ICrewmateDispatcher { contract_address: crewmate_address }.mint_with_auto_id(player);
@@ -318,7 +322,7 @@ mod tests {
         ICrewmateDispatcher { contract_address: crewmate_address }.mint_with_auto_id(player);
         components::set::<Crewmate>(EntityTrait::new(entities::CREWMATE, 4).path(), default_crewmate);
 
-        let asteroid = influence::test::mocks::asteroid();
+        let _asteroid = influence::test::mocks::asteroid();
 
         // Add a couple crewmates to crew
         let crew1 = influence::test::mocks::delegated_crew(1, 'PLAYER');

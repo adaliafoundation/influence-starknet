@@ -196,12 +196,12 @@ const RADIUS_SCALE: u64 = 50000; // Store more precision. Scale chosen to allow 
 impl StoreCelestial of Store<Celestial> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<Celestial> {
-        return StoreCelestial::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: Celestial) -> SyscallResult<()> {
-        return StoreCelestial::write_at_offset(address_domain, base, 0, value);
+        return Self::write_at_offset(address_domain, base, 0, value);
     }
 
     #[inline(always)]
@@ -245,8 +245,8 @@ impl StoreCelestial of Store<Celestial> {
         pack_u128(ref high, packed::EXP2_60, packed::EXP2_32, value.bonuses.into());
 
         let combined = low.into() + high.into() * packed::EXP2_128;
-        Store::<felt252>::write_at_offset(address_domain, base, offset, combined);
-        Store::<felt252>::write_at_offset(address_domain, base, offset + 1, value.abundances);
+        Store::<felt252>::write_at_offset(address_domain, base, offset, combined).unwrap_syscall();
+        Store::<felt252>::write_at_offset(address_domain, base, offset + 1, value.abundances).unwrap_syscall();
         return Result::Ok(());
     }
 
@@ -280,7 +280,7 @@ mod tests {
     #[available_gas(500000)]
     fn test_storage() {
         let base = starknet::storage_base_address_from_felt252(42);
-        let entity = EntityTrait::new(entities::ASTEROID, 1);
+        let _entity = EntityTrait::new(entities::ASTEROID, 1);
         let orbit = Celestial {
             celestial_type: types::CM_TYPE_ASTEROID,
             mass: f128::FixedTrait::new_unscaled(234500000, false),
@@ -292,7 +292,7 @@ mod tests {
             abundances: 123435
         };
 
-        Store::<Celestial>::write(0, base, orbit);
+        Store::<Celestial>::write(0, base, orbit).unwrap_syscall();
         let read_orbit = Store::<Celestial>::read(0, base).unwrap();
 
         assert(read_orbit.celestial_type == orbit.celestial_type, 'celestial_type does not match');

@@ -95,12 +95,12 @@ impl ExtractorImpl of ExtractorTrait {
 impl StoreExtractor of Store<Extractor> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<Extractor> {
-        return StoreExtractor::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: Extractor) -> SyscallResult<()> {
-        return StoreExtractor::write_at_offset(address_domain, base, 0, value);
+        return Self::write_at_offset(address_domain, base, 0, value);
     }
 
     #[inline(always)]
@@ -178,7 +178,7 @@ mod tests {
             finish_time: 5
         };
 
-        Store::<Extractor>::write(0, base, extractor);
+        Store::<Extractor>::write(0, base, extractor).unwrap_syscall();
         let read_extractor = Store::<Extractor>::read(0, base).unwrap();
         assert(read_extractor.extractor_type == extractor.extractor_type, 'extractor_type does not match');
         assert(read_extractor.status == extractor.status, 'status does not match');

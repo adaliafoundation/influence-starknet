@@ -88,7 +88,7 @@ impl EntityImpl of EntityTrait {
         let mut id: u128 = asteroid.into();
         packed::pack_u128(ref id, packed::EXP2_32, packed::EXP2_32, lot.into());
         position::assert_valid_lot(asteroid, lot);
-        return EntityTrait::new(entities::LOT, id.try_into().unwrap());
+        return Self::new(entities::LOT, id.try_into().unwrap());
     }
 
     fn to_position(self: Entity) -> (u64, u64) {

@@ -294,12 +294,12 @@ impl ProductTypeImpl of ProductTypeTrait {
 impl StoreProductType of Store<ProductType> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<ProductType> {
-        return StoreProductType::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: ProductType) -> SyscallResult<()> {
-        return StoreProductType::write_at_offset(address_domain, base, 0, value);
+        return Self::write_at_offset(address_domain, base, 0, value);
     }
 
     #[inline(always)]
@@ -350,14 +350,14 @@ mod tests {
         let base = starknet::storage_base_address_from_felt252(42);
         let mut to_store = ProductType { mass: 1234, volume: 2345 };
 
-        StoreProductType::write(0, base, to_store);
+        StoreProductType::write(0, base, to_store).unwrap_syscall();
         let mut to_read = StoreProductType::read(0, base).unwrap();
         assert(to_read.mass == 1234, 'wrong mass');
         assert(to_read.volume == 2345, 'wrong volume');
 
         to_store.mass = 3456;
         to_store.volume = 4567;
-        StoreProductType::write(0, base, to_store);
+        StoreProductType::write(0, base, to_store).unwrap_syscall();
         to_read = StoreProductType::read(0, base).unwrap();
         assert(to_read.mass == 3456, 'wrong mass');
         assert(to_read.volume == 4567, 'wrong volume');

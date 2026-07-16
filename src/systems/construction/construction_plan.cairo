@@ -42,10 +42,10 @@ mod ConstructionPlan {
     fn run(ref self: ContractState, building_type: u64, lot: Entity, caller_crew: Entity, context: Context) {
         // Check that crew is delegated, and ready
         let mut crew_details = CrewDetailsTrait::new(caller_crew);
-        let mut crew_data = crew_details.component;
+        let mut _crew_data = crew_details.component;
 
         // Check that crew is on surface of asteroid
-        let (lot_ast, lot_lot) = lot.to_position();
+        let (lot_ast, _lot_lot) = lot.to_position();
         assert(crew_details.asteroid_id() == lot_ast, errors::DIFFERENT_ASTEROIDS);
         assert(crew_details.lot_id() != 0, errors::IN_ORBIT);
         let asteroid = EntityTrait::new(entities::ASTEROID, lot_ast);

@@ -58,12 +58,12 @@ impl StationImpl of StationTrait {
 impl StoreStation of Store<Station> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<Station> {
-        return StoreStation::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: Station) -> SyscallResult<()> {
-        return StoreStation::write_at_offset(address_domain, base, 0, value);
+        return Self::write_at_offset(address_domain, base, 0, value);
     }
 
     #[inline(always)]
@@ -118,12 +118,12 @@ mod tests {
         let base = starknet::storage_base_address_from_felt252(42);
         let mut station = StationTrait::new(station_types::HABITAT);
 
-        StoreStation::write(0, base, station);
+        StoreStation::write(0, base, station).unwrap_syscall();
         let mut read_station = StoreStation::read(0, base).unwrap();
         assert(read_station.population == 0, 'wrong population');
 
         station.population = 100;
-        StoreStation::write(0, base, station);
+        StoreStation::write(0, base, station).unwrap_syscall();
         read_station = StoreStation::read(0, base).unwrap();
         assert(read_station.population == 100, 'wrong cap');
     }

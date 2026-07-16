@@ -1,10 +1,10 @@
 use array::{ArrayTrait, array_slice, Span, SpanTrait};
 use dict::{Felt252DictTrait, Felt252DictEntryTrait};
+use core::ops::{AddAssign, SubAssign};
 use option::OptionTrait;
 use result::ResultTrait;
 use serde::Serde;
-use starknet::SyscallResult;
-use starknet::{Store, StorageBaseAddress, storage_base_address_const};
+use starknet::{Store, StorageBaseAddress, SyscallResult, SyscallResultTrait, storage_base_address_const};
 use traits::{Into, TryInto};
 
 use influence::common::{packed, packed::{split_felt252, pack_u128, unpack_u128}};
@@ -59,11 +59,11 @@ impl InventoryItemAdd of Add<InventoryItem> {
     }
 }
 
-impl InventoryItemAddEq of AddEq<InventoryItem> {
+impl InventoryItemAddEq of AddAssign<InventoryItem, InventoryItem> {
     #[inline(always)]
-    fn add_eq(ref self: InventoryItem, other: InventoryItem) {
-        assert(self.product == other.product, 'different products');
-        self.amount += other.amount;
+    fn add_assign(ref self: InventoryItem, rhs: InventoryItem) {
+        assert(self.product == rhs.product, 'different products');
+        self.amount += rhs.amount;
     }
 }
 
@@ -76,12 +76,12 @@ impl InventoryItemSub of Sub<InventoryItem> {
     }
 }
 
-impl InventoryItemSubEq of SubEq<InventoryItem> {
+impl InventoryItemSubEq of SubAssign<InventoryItem, InventoryItem> {
     #[inline(always)]
-    fn sub_eq(ref self: InventoryItem, other: InventoryItem) {
-        assert(self.product == other.product, 'different products');
-        assert(self.amount >= other.amount, 'not enough items');
-        self.amount -= other.amount;
+    fn sub_assign(ref self: InventoryItem, rhs: InventoryItem) {
+        assert(self.product == rhs.product, 'different products');
+        assert(self.amount >= rhs.amount, 'not enough items');
+        self.amount -= rhs.amount;
     }
 }
 
@@ -210,7 +210,7 @@ impl InventoryContentsImpl of InventoryContentsTrait {
             }
 
             let combined = low.into() + high.into() * packed::EXP2_128;
-            Store::<felt252>::write_at_offset(address_domain, base, offset + iter, combined);
+            Store::<felt252>::write_at_offset(address_domain, base, offset + iter, combined).unwrap_syscall();
             iter += 1;
         };
 

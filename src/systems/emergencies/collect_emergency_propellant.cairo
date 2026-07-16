@@ -46,7 +46,7 @@ mod CollectEmergencyPropellant {
         crew_details.assert_delegated_to(context.caller);
         crew_details.assert_manned();
         crew_details.assert_ready(context.now);
-        let mut crew_data = crew_details.component;
+        let mut _crew_data = crew_details.component;
 
         // Retrieve the ship and check that it's in emergency mode
         let (ship, mut ship_data) = crew_details.ship();

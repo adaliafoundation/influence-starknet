@@ -52,11 +52,11 @@ impl DeliveryComponent of ComponentTrait<Delivery> {
 
 impl StoreDelivery of Store<Delivery> {
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<Delivery> {
-        return StoreDelivery::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     fn write(address_domain: u32, base: StorageBaseAddress, value: Delivery) -> SyscallResult<()> {
-        return StoreDelivery::write_at_offset(address_domain, base, 0, value);
+        return Self::write_at_offset(address_domain, base, 0, value);
     }
 
     fn read_at_offset(address_domain: u32, base: StorageBaseAddress, offset: u8) -> SyscallResult<Delivery> {
@@ -95,7 +95,7 @@ impl StoreDelivery of Store<Delivery> {
         pack_u128(ref low, packed::EXP2_88, packed::EXP2_36, value.finish_time.into());
 
         let combined = low.into() + high.into() * packed::EXP2_128;
-        Store::<felt252>::write_at_offset(address_domain, base, offset, combined);
+        Store::<felt252>::write_at_offset(address_domain, base, offset, combined).unwrap_syscall();
 
         return Result::Ok(());
     }
@@ -152,7 +152,7 @@ mod tests {
             contents: contents.span()
         };
 
-        Store::<Delivery>::write(0, base, write_del);
+        Store::<Delivery>::write(0, base, write_del).unwrap_syscall();
         let read_del = Store::<Delivery>::read(0, base).unwrap();
 
         assert(read_del.status == 1, 'status wrong');

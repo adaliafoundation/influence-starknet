@@ -63,6 +63,9 @@ trait InventoryTrait {
 
 impl InventoryImpl of InventoryTrait {
     fn new(inventory_type: u64) -> Inventory {
+        let contents: Array<InventoryItem> = Default::default();
+        let reservations: Array<InventoryItem> = Default::default();
+
         return Inventory {
             status: statuses::AVAILABLE,
             inventory_type: inventory_type,
@@ -70,8 +73,8 @@ impl InventoryImpl of InventoryTrait {
             volume: 0,
             reserved_mass: 0,
             reserved_volume: 0,
-            contents: Default::default().span(),
-            reservations: Default::default().span()
+            contents: contents.span(),
+            reservations: reservations.span()
         };
     }
 
@@ -100,11 +103,11 @@ impl InventoryImpl of InventoryTrait {
 
 impl StoreInventory of Store<Inventory> {
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<Inventory> {
-        return StoreInventory::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     fn write(address_domain: u32, base: StorageBaseAddress, value: Inventory) -> SyscallResult<()> {
-        return StoreInventory::write_at_offset(address_domain, base, 0, value);
+        return Self::write_at_offset(address_domain, base, 0, value);
     }
 
     fn read_at_offset(address_domain: u32, base: StorageBaseAddress, offset: u8) -> SyscallResult<Inventory> {
@@ -153,7 +156,7 @@ impl StoreInventory of Store<Inventory> {
         pack_u128(ref high, packed::EXP2_70, packed::EXP2_50, value.reserved_volume.into());
 
         let combined = low.into() + high.into() * packed::EXP2_128;
-        Store::<felt252>::write_at_offset(address_domain, base, offset, combined);
+        Store::<felt252>::write_at_offset(address_domain, base, offset, combined).unwrap_syscall();
         return Result::Ok(());
     }
 
@@ -214,7 +217,7 @@ mod tests {
             reservations: reservations.span()
         };
 
-        StoreInventory::write(0, base, write_inv); // 6.8k
+        StoreInventory::write(0, base, write_inv).unwrap_syscall(); // 6.8k
         let read_inv = StoreInventory::read(0, base).unwrap(); // 3.9k
         assert(read_inv.inventory_type == 212, 'capacity type wrong');
         assert(read_inv.status == statuses::AVAILABLE, 'status wrong');

@@ -4,10 +4,11 @@
 #[starknet::contract]
 mod Designate {
     use starknet::{ContractAddress, get_caller_address};
+    use starknet::storage::Map;
 
     #[storage]
     struct Storage {
-        designees: LegacyMap::<ContractAddress, ContractAddress>
+        designees: Map::<ContractAddress, ContractAddress>
     }
 
     #[event]

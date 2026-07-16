@@ -53,12 +53,12 @@ impl PrivateSaleImpl of PrivateSaleTrait {
 impl StorePrivateSale of Store<PrivateSale> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<PrivateSale> {
-        return StorePrivateSale::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: PrivateSale) -> SyscallResult<()> {
-        return StorePrivateSale::write_at_offset(address_domain, base, 0, value);
+        return Self::write_at_offset(address_domain, base, 0, value);
     }
 
     #[inline(always)]
@@ -113,8 +113,8 @@ mod tests {
         let base = starknet::storage_base_address_from_felt252(42);
         let sale = PrivateSale { status: statuses::OPEN, amount: 5678 };
 
-        let entity = EntityTrait::new(entities::SHIP, 1);
-        Store::<PrivateSale>::write(0, base, sale);
+        let _entity = EntityTrait::new(entities::SHIP, 1);
+        Store::<PrivateSale>::write(0, base, sale).unwrap_syscall();
         let read_sale = Store::<PrivateSale>::read(0, base).unwrap();
         assert(read_sale.status == statuses::OPEN, 'status wrong');
         assert(read_sale.amount == 5678, 'amount wrong');

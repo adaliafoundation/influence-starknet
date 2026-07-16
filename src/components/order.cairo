@@ -53,12 +53,12 @@ impl OrderComponent of ComponentTrait<Order> {
 impl StoreOrder of Store<Order> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<Order> {
-        return StoreOrder::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: Order) -> SyscallResult<()> {
-        return StoreOrder::write_at_offset(address_domain, base, 0, value);
+        return Self::write_at_offset(address_domain, base, 0, value);
     }
 
     #[inline(always)]
@@ -120,7 +120,7 @@ mod tests {
             maker_fee: 10000
         };
 
-        Store::<Order>::write(0, base, order);
+        Store::<Order>::write(0, base, order).unwrap_syscall();
         let read_order = Store::<Order>::read(0, base).unwrap_syscall();
         assert(read_order.status == order.status, 'status does not match');
         assert(read_order.amount == order.amount, 'amount does not match');

@@ -326,7 +326,7 @@ mod tests {
         prop_inv_path.append(ShipTypeTrait::by_type(ship_types::ESCAPE_MODULE).propellant_slot.into());
 
         let mut prop_inv = components::get::<Inventory>(prop_inv_path.span()).unwrap();
-        let mut prop_to_add = Default::default();
+        let mut prop_to_add: Array<InventoryItem> = Default::default();
         prop_to_add.append(InventoryItemTrait::new(product_types::HYDROGEN_PROPELLANT, 5000));
         prop_inv.enable();
         inventory::add(ref prop_inv, prop_to_add.span(), f64::FixedTrait::ONE(), f64::FixedTrait::ONE());

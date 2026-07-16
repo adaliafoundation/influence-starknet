@@ -42,12 +42,12 @@ impl UniqueImpl of UniqueTrait {
 impl StoreUnique of Store<Unique> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<Unique> {
-        return StoreUnique::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: Unique) -> SyscallResult<()> {
-        return StoreUnique::write_at_offset(address_domain, base, 0, value);
+        return Self::write_at_offset(address_domain, base, 0, value);
     }
 
     #[inline(always)]
@@ -90,7 +90,7 @@ mod tests {
         let base = starknet::storage_base_address_from_felt252(42);
         let unique = Unique { unique: 1 };
 
-        Store::<Unique>::write(0, base, unique);
+        Store::<Unique>::write(0, base, unique).unwrap();
         let read_unique = Store::<Unique>::read(0, base).unwrap();
         assert(read_unique.unique == 1, 'wrong unique value');
     }

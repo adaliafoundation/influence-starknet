@@ -105,7 +105,7 @@ mod RecruitAdalian {
         if maybe_crew_data.is_some() {
             maybe_crew_data.unwrap().assert_ready(context.now);
         } else {
-            let (new_crew, crew_data) = create_crew(station, context.caller);
+            let (new_crew, _crew_data) = create_crew(station, context.caller);
             target_crew = new_crew;
         };
 
@@ -355,7 +355,7 @@ mod tests {
             .add_grant(starknet::contract_address_const::<'DISPATCHER'>(), 2);
 
         starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
-        let asteroid = influence::test::mocks::asteroid();
+        let _asteroid = influence::test::mocks::asteroid();
         let crew = influence::test::mocks::delegated_crew(1, 'PLAYER');
         let mut crew_data = components::get::<Crew>(crew.path()).unwrap();
         crew_data.last_fed = 1703165866;

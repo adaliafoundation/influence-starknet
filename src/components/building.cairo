@@ -80,12 +80,12 @@ impl BuildingImpl of BuildingTrait {
 impl StoreBuilding of Store<Building> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<Building> {
-        return StoreBuilding::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: Building) -> SyscallResult<()> {
-        return StoreBuilding::write_at_offset(
+        return Self::write_at_offset(
             address_domain, base, 0, value
         );
     }
@@ -145,10 +145,10 @@ mod tests {
     #[available_gas(500000)]
     fn test_storage() {
         let base = starknet::storage_base_address_from_felt252(42);
-        let entity = EntityTrait::new(entities::BUILDING, 1);
+        let _entity = EntityTrait::new(entities::BUILDING, 1);
         let mut building = BuildingTrait::new(building_types::EXTRACTOR, 1234);
 
-        Store::<Building>::write(0, base, building);
+        Store::<Building>::write(0, base, building).unwrap_syscall();
         let mut read_building = Store::<Building>::read(0, base).unwrap_syscall();
         assert(read_building.status == statuses::PLANNED, 'wrong status');
         assert(read_building.building_type == building_types::EXTRACTOR, 'wrong building_type');

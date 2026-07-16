@@ -37,7 +37,7 @@ fn commit(key: felt252, round_delay: u64) {
     let mut commitment = 0;
     packed::pack_u128(ref commitment, packed::EXP2_0, packed::EXP2_4, strategy.into());
     packed::pack_u128(ref commitment, packed::EXP2_4, packed::EXP2_36, committed_round.into());
-    starknet::storage_write_syscall(0, address, commitment.into());
+    starknet::storage_write_syscall(0, address, commitment.into()).unwrap_syscall();
 }
 
 fn reveal(key: felt252) -> felt252 {
@@ -127,12 +127,12 @@ mod entropy {
     const ENTROPY_ROUNDS: felt252 = 0x21a28c348e1955236f4b0effd28ed77690341014ef67914ca2d8258c6236237; // entropy_rounds
 
     fn committed_round(round_delay: u64) -> u64 {
-        let (last_round, last_time) = get_last_random();
+        let (last_round, _last_time) = get_last_random();
         return last_round + round_delay;
     }
 
     fn reveal(committed_round: u64) -> felt252 {
-        let (last_round, last_time) = get_last_random();
+        let (last_round, _last_time) = get_last_random();
         assert(last_round >= committed_round, 'round not reached');
         return get_random(committed_round);
     }
@@ -178,13 +178,13 @@ mod entropy {
     fn set_random_rounds(round: u64, random: felt252) {
         let base = starknet::storage_base_address_from_felt252(LegacyHash::hash(ENTROPY_ROUNDS, round));
         let address = starknet::storage_address_from_base_and_offset(base, 0);
-        starknet::storage_write_syscall(0, address, random);
+        starknet::storage_write_syscall(0, address, random).unwrap_syscall();
     }
 
     fn set_last_random(last: felt252) {
         let base = starknet::storage_base_address_from_felt252(ENTROPY_LAST);
         let address = starknet::storage_address_from_base_and_offset(base, 0);
-        starknet::storage_write_syscall(0, address, last);
+        starknet::storage_write_syscall(0, address, last).unwrap_syscall();
     }
 }
 

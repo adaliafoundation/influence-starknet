@@ -57,7 +57,7 @@ mod SeedOrders {
         // Check the caller is the admin
         assert(context.is_admin(), 'only admin can seed');
 
-        let asteroid = EntityTrait::new(entities::ASTEROID, 1);
+        let _asteroid = EntityTrait::new(entities::ASTEROID, 1);
         let crew = EntityTrait::new(entities::CREW, 1);
 
         // Get the marketplace building via Unique
@@ -377,7 +377,7 @@ mod tests {
         assert(price == 10000000, 'price should be 10000000');
 
         // make sure we don't overflow
-        let (mut amount, mut price) = SeedOrders::calculate_order(13000000000, 100000, 1, true);
+        let (mut _amount, mut _price) = SeedOrders::calculate_order(13000000000, 100000, 1, true);
     }
 
     #[test]

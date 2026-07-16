@@ -48,9 +48,10 @@ trait IShip<TContractState> {
 mod Ship {
     use array::{ArrayTrait, SpanTrait};
     use option::{OptionTrait};
-    use starknet::{ClassHash, ContractAddress, get_caller_address};
+    use starknet::{ClassHash, ContractAddress, SyscallResultTrait, get_caller_address};
     use starknet::eth_address::{EthAddress};
     use starknet::info::{get_contract_address};
+    use starknet::storage::Map;
     use starknet::syscalls::{send_message_to_l1_syscall, replace_class_syscall};
     use traits::{Into, TryInto};
     use zeroable::{Zeroable};
@@ -72,16 +73,16 @@ mod Ship {
     struct Storage {
         _name: felt252,
         _symbol: felt252,
-        _token_uri: LegacyMap::<u256, felt252>,
-        balances: LegacyMap::<ContractAddress, u256>,
+        _token_uri: Map::<u256, felt252>,
+        balances: Map::<ContractAddress, u256>,
         base_uri: Array<felt252>,
         l1_bridge_address: EthAddress,
-        operator_approvals: LegacyMap::<(ContractAddress, ContractAddress), bool>,
-        owners: LegacyMap::<u256, ContractAddress>,
-        role_grants: LegacyMap::<(ContractAddress, u64), bool>,
-        sell_orders: LegacyMap::<u256, u128>,
+        operator_approvals: Map::<(ContractAddress, ContractAddress), bool>,
+        owners: Map::<u256, ContractAddress>,
+        role_grants: Map::<(ContractAddress, u64), bool>,
+        sell_orders: Map::<u256, u128>,
         sway_address: ContractAddress,
-        token_approvals: LegacyMap::<u256, ContractAddress>,
+        token_approvals: Map::<u256, ContractAddress>,
         token_tracker: u256
     }
 
@@ -154,7 +155,7 @@ mod Ship {
     #[external(v0)]
     fn upgrade(ref self: ContractState, class_hash: ClassHash) {
         assert(self.role_grants.read((get_caller_address(), roles::ADMIN)), 'ERC721: must be admin');
-        replace_class_syscall(class_hash);
+        replace_class_syscall(class_hash).unwrap_syscall();
     }
 
     #[external(v0)]
@@ -432,7 +433,7 @@ mod Ship {
             iter += 1;
         };
 
-        send_message_to_l1_syscall(to_address: l1_bridge_address, payload: payload.span());
+        send_message_to_l1_syscall(to_address: l1_bridge_address, payload: payload.span()).unwrap_syscall();
     }
 
     #[l1_handler]

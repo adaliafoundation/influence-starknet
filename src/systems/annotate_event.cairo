@@ -103,6 +103,6 @@ mod tests {
         unique_key.append(*content_hash.at(1));
         unique_key.append(crew.into());
 
-        let annotation_data = components::get::<Unique>(unique_key.span()).expect('annotation not set');
+        let _annotation_data = components::get::<Unique>(unique_key.span()).expect('annotation not set');
     }
 }

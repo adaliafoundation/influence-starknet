@@ -212,14 +212,17 @@ trait CrewmateTrait {
 
 impl CrewmateImpl of CrewmateTrait {
     fn new(collection: u64) -> Crewmate {
+        let cosmetic: Array<u64> = Default::default();
+        let impactful: Array<u64> = Default::default();
+
         return Crewmate {
             status: statuses::UNINITIALIZED,
             collection: collection,
             class: 0,
             title: 0,
             appearance: 0,
-            cosmetic: Default::default().span(),
-            impactful: Default::default().span()
+            cosmetic: cosmetic.span(),
+            impactful: impactful.span()
         };
     }
 
@@ -305,12 +308,12 @@ fn unpack_traits(combined: u128) -> Span<u64> {
 impl StoreCrewmate of Store<Crewmate> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<Crewmate> {
-        return StoreCrewmate::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: Crewmate) -> SyscallResult<()> {
-        return StoreCrewmate::write_at_offset(
+        return Self::write_at_offset(
             address_domain, base, 0, value
         );
     }
@@ -351,7 +354,7 @@ impl StoreCrewmate of Store<Crewmate> {
         let impactful = pack_traits(value.impactful);
         let traits = impactful.into() + cosmetic.into() * packed::EXP2_128;
 
-        Store::<felt252>::write_at_offset(address_domain, base, offset, features);
+        Store::<felt252>::write_at_offset(address_domain, base, offset, features).unwrap_syscall();
         return Store::<felt252>::write_at_offset(address_domain, base, offset + 1, traits);
     }
 
@@ -396,8 +399,8 @@ mod tests {
             impactful: impactful.span()
         };
 
-        let entity = EntityTrait::new(entities::CREWMATE, 1);
-        Store::<Crewmate>::write(0, base, crewmate_data); // 24k gas
+        let _entity = EntityTrait::new(entities::CREWMATE, 1);
+        Store::<Crewmate>::write(0, base, crewmate_data).unwrap_syscall(); // 24k gas
 
         let read_data = Store::<Crewmate>::read(0, base).unwrap(); // 23k
         assert(read_data.status == statuses::INITIALIZED, 'Wrong status');

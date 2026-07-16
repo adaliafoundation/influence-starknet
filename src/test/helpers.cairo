@@ -3,7 +3,7 @@ use debug::PrintTrait;
 use option::OptionTrait;
 use result::ResultTrait;
 use traits::TryInto;
-use starknet::{ClassHash, Felt252TryIntoClassHash, ContractAddress, deploy_syscall};
+use starknet::{ClassHash, Felt252TryIntoClassHash, ContractAddress, SyscallResultTrait, deploy_syscall};
 
 use influence::{config, contracts, systems};
 use influence::contracts::{Asteroid, Crew, Crewmate, Dispatcher, Ship, Sway};
@@ -30,7 +30,8 @@ fn gas_report(log: felt252, prev: u128) -> u128 {
 
 fn deploy_system(name: felt252, class_hash_raw: felt252) {
     let class_hash: ClassHash = class_hash_raw.try_into().unwrap();
-    deploy_syscall(class_hash, 0, Default::default().span(), false);
+    let calldata: Array<felt252> = Default::default();
+    deploy_syscall(class_hash, 0, calldata.span(), false).unwrap_syscall();
     systems::set(name, class_hash);
 }
 

@@ -139,7 +139,7 @@ fn set<
     let component_name = ComponentTrait::<T>::name();
     let version = ComponentTrait::<T>::version();
     let base = resolve(component_name, path);
-    Store::<T>::write(STORAGE_STRATEGY, base, data);
+    Store::<T>::write(STORAGE_STRATEGY, base, data).unwrap_syscall();
 
     // Emit event
     let mut event_keys: Array<felt252> = array![EVENT_NAME, component_name];
@@ -151,7 +151,7 @@ fn set<
     let mut values = Default::default();
     serde::Serde::<Array<felt252>>::serialize(path.snapshot, ref values);
     serde::Serde::<T>::serialize(@data, ref values);
-    emit_event_syscall(event_keys.span(), values.span());
+    emit_event_syscall(event_keys.span(), values.span()).unwrap_syscall();
 }
 
 fn resolve(name: felt252, path: Span<felt252>) -> StorageBaseAddress {

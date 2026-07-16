@@ -24,7 +24,7 @@ mod PurchaseAdalian {
 
     #[external(v0)]
     fn run(ref self: ContractState, collection: u64, context: Context) {
-        let (crewmate, crewmate_data) = purchase_crewmate(collection, context.caller);
+        let (crewmate, _crewmate_data) = purchase_crewmate(collection, context.caller);
         self.emit(CrewmatePurchased { crewmate, caller: context.caller });
     }
 }

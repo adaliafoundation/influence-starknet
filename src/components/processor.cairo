@@ -104,12 +104,12 @@ impl ProcessorImpl of ProcessorTrait {
 impl StoreProcessor of Store<Processor> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<Processor> {
-        return StoreProcessor::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: Processor) -> SyscallResult<()> {
-        return StoreProcessor::write_at_offset(address_domain, base, 0, value);
+        return Self::write_at_offset(address_domain, base, 0, value);
     }
 
     #[inline(always)]
@@ -197,7 +197,7 @@ mod tests {
             finish_time: 6
         };
 
-        Store::<Processor>::write(0, base, processor);
+        Store::<Processor>::write(0, base, processor).unwrap_syscall();
         let read_processor = Store::<Processor>::read(0, base).unwrap();
         assert(read_processor.processor_type == types::REFINERY, 'processor type wrong');
         assert(read_processor.status == statuses::RUNNING, 'status wrong');

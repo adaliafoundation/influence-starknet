@@ -54,7 +54,7 @@ impl PrepaidAgreementAuctionSettingsImpl of PrepaidAgreementAuctionSettingsTrait
     }
 
     fn defaults() -> PrepaidAgreementAuctionSettings {
-        return PrepaidAgreementAuctionSettingsTrait::new(modes::MANUAL, DEFAULT_GRACE_PERIOD);
+        return Self::new(modes::MANUAL, DEFAULT_GRACE_PERIOD);
     }
 }
 
@@ -96,12 +96,12 @@ impl PrepaidAgreementAuctionImpl of PrepaidAgreementAuctionTrait {
 impl StorePrepaidAgreementAuctionSettings of Store<PrepaidAgreementAuctionSettings> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<PrepaidAgreementAuctionSettings> {
-        return StorePrepaidAgreementAuctionSettings::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: PrepaidAgreementAuctionSettings) -> SyscallResult<()> {
-        return StorePrepaidAgreementAuctionSettings::write_at_offset(address_domain, base, 0, value);
+        return Self::write_at_offset(address_domain, base, 0, value);
     }
 
     #[inline(always)]
@@ -134,12 +134,12 @@ impl StorePrepaidAgreementAuctionSettings of Store<PrepaidAgreementAuctionSettin
 impl StorePrepaidAgreementAuction of Store<PrepaidAgreementAuction> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<PrepaidAgreementAuction> {
-        return StorePrepaidAgreementAuction::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: PrepaidAgreementAuction) -> SyscallResult<()> {
-        return StorePrepaidAgreementAuction::write_at_offset(address_domain, base, 0, value);
+        return Self::write_at_offset(address_domain, base, 0, value);
     }
 
     #[inline(always)]
@@ -183,7 +183,7 @@ mod tests {
         let base = starknet::storage_base_address_from_felt252(42);
         let settings = PrepaidAgreementAuctionSettingsTrait::new(modes::AUTO, 10);
 
-        Store::<PrepaidAgreementAuctionSettings>::write(0, base, settings);
+        Store::<PrepaidAgreementAuctionSettings>::write(0, base, settings).unwrap();
         let read_settings = Store::<PrepaidAgreementAuctionSettings>::read(0, base).unwrap();
 
         assert(read_settings.mode == modes::AUTO, 'mode wrong');
@@ -196,7 +196,7 @@ mod tests {
         let base = starknet::storage_base_address_from_felt252(42);
         let auction = PrepaidAgreementAuctionTrait::new(1234);
 
-        Store::<PrepaidAgreementAuction>::write(0, base, auction);
+        Store::<PrepaidAgreementAuction>::write(0, base, auction).unwrap();
         let read_auction = Store::<PrepaidAgreementAuction>::read(0, base).unwrap();
 
         assert(read_auction.status == statuses::ACTIVE, 'status wrong');

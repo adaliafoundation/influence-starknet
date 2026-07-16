@@ -100,7 +100,7 @@ mod tests {
             .add_grant(starknet::contract_address_const::<'DISPATCHER'>(), 2);
 
         starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
-        let id = IAsteroidDispatcher { contract_address: asteroid_address }.mint_with_id(
+        let _id = IAsteroidDispatcher { contract_address: asteroid_address }.mint_with_id(
             starknet::contract_address_const::<'PLAYER'>(), 104
         );
 

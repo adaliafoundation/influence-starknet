@@ -56,12 +56,12 @@ impl PrepaidAgreementImpl of PrepaidAgreementTrait {
 impl StorePrepaidAgreement of Store<PrepaidAgreement> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<PrepaidAgreement> {
-        return StorePrepaidAgreement::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: PrepaidAgreement) -> SyscallResult<()> {
-        return StorePrepaidAgreement::write_at_offset(
+        return Self::write_at_offset(
             address_domain, base, 0, value
         );
     }
@@ -131,7 +131,7 @@ mod tests {
         let mut agreement = PrepaidAgreementTrait::new(1, 2, 3, 4, 5);
         let base = starknet::storage_base_address_from_felt252(42);
 
-        Store::<PrepaidAgreement>::write(0, base, agreement); // 640
+        Store::<PrepaidAgreement>::write(0, base, agreement).unwrap_syscall(); // 640
         let mut read_agreement = Store::<PrepaidAgreement>::read(0, base).unwrap_syscall(); // 730
         assert(read_agreement.rate == 1, 'rate should be equal');
         assert(read_agreement.initial_term == 2, 'initial_term should be equal');
@@ -141,7 +141,7 @@ mod tests {
         assert(read_agreement.notice_time == 0, 'notice_time should be equal');
 
         agreement.notice_time = 10;
-        Store::<PrepaidAgreement>::write(0, base, agreement);
+        Store::<PrepaidAgreement>::write(0, base, agreement).unwrap_syscall();
         read_agreement = Store::<PrepaidAgreement>::read(0, base).unwrap_syscall();
         assert(read_agreement.notice_time == 10, 'notice_time should be equal');
     }

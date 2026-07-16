@@ -45,7 +45,7 @@ mod ClaimArrivalReward {
         // Check that crew is delegated, and ready
         let mut crew_details = CrewDetailsTrait::new(caller_crew);
         crew_details.assert_all_ready(context.caller, context.now);
-        let mut crew_data = crew_details.component;
+        let mut _crew_data = crew_details.component;
 
         // Only the controller of the asteroid can claim
         caller_crew.assert_controls(asteroid);

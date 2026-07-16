@@ -70,8 +70,9 @@ mod Sway {
     use array::{ArrayTrait};
     use clone::{Clone};
     use option::{OptionTrait};
-    use starknet::{ClassHash, ContractAddress, get_caller_address, info::get_block_timestamp};
+    use starknet::{ClassHash, ContractAddress, SyscallResultTrait, get_caller_address, info::get_block_timestamp};
     use starknet::eth_address::{EthAddress, EthAddressZeroable, Felt252TryIntoEthAddress};
+    use starknet::storage::Map;
     use starknet::syscalls::{send_message_to_l1_syscall, replace_class_syscall};
     use traits::{Into, TryInto};
     use zeroable::Zeroable;
@@ -90,13 +91,13 @@ mod Sway {
         _name: felt252,
         _symbol: felt252,
         _total_supply: u256,
-        allowances: LegacyMap::<(ContractAddress, ContractAddress), u256>,
-        balances: LegacyMap::<ContractAddress, u256>,
-        confirmations: LegacyMap::<felt252, felt252>,
+        allowances: Map::<(ContractAddress, ContractAddress), u256>,
+        balances: Map::<ContractAddress, u256>,
+        confirmations: Map::<felt252, felt252>,
         l1_bridge_address: EthAddress,
         l1_sway_volume_address: EthAddress,
-        period_volumes: LegacyMap::<u64, u256>,
-        role_grants: LegacyMap::<(ContractAddress, u64), bool>,
+        period_volumes: Map::<u64, u256>,
+        role_grants: Map::<(ContractAddress, u64), bool>,
     }
 
     #[event]
@@ -180,7 +181,7 @@ mod Sway {
     #[external(v0)]
     fn upgrade(ref self: ContractState, class_hash: ClassHash) {
         assert(self.role_grants.read((get_caller_address(), roles::ADMIN)), 'SWAY: must be admin');
-        replace_class_syscall(class_hash);
+        replace_class_syscall(class_hash).unwrap_syscall();
     }
 
     // Mint allows for the creation of new tokens. Only the admin role is capable of calling this function.
@@ -331,7 +332,7 @@ mod Sway {
         payload.append(l1_recipient.into());
         payload.append(amount.low.into());
         payload.append(amount.high.into());
-        send_message_to_l1_syscall(to_address: l1_bridge_address.into(), payload: payload.span());
+        send_message_to_l1_syscall(to_address: l1_bridge_address.into(), payload: payload.span()).unwrap_syscall();
 
         self.emit(WithdrawInitiated {
             l1_recipient: l1_recipient,
@@ -496,7 +497,7 @@ mod Sway {
         let mut payload: Array<felt252> = Default::default();
         payload.append(period.into());
         payload.append(self.period_volumes.read(period).try_into().unwrap());
-        send_message_to_l1_syscall(to_address: to_address.into(), payload: payload.span());
+        send_message_to_l1_syscall(to_address: to_address.into(), payload: payload.span()).unwrap_syscall();
     }
 
     fn current_period() -> u64 {

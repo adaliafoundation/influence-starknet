@@ -54,12 +54,12 @@ const SCALE_ELEMENTS: u128 = 0x800000000; // 2^35
 impl StoreOrbit of Store<Orbit> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<Orbit> {
-        return StoreOrbit::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: Orbit) -> SyscallResult<()> {
-        return StoreOrbit::write_at_offset(address_domain, base, 0, value);
+        return Self::write_at_offset(address_domain, base, 0, value);
     }
 
     #[inline(always)]
@@ -94,7 +94,7 @@ impl StoreOrbit of Store<Orbit> {
         pack_u128(ref high, packed::EXP2_64, packed::EXP2_32, value.m.mag / SCALE_ELEMENTS);
 
         let combined = low.into() + high.into() * packed::EXP2_128;
-        Store::<felt252>::write_at_offset(address_domain, base, offset, combined);
+        Store::<felt252>::write_at_offset(address_domain, base, offset, combined).unwrap_syscall();
         return Result::Ok(());
     }
 
@@ -141,7 +141,7 @@ mod tests {
             m: FixedTrait::new(17488672753899966464, false)
         };
 
-        Store::<Orbit>::write(0, base, orbit);
+        Store::<Orbit>::write(0, base, orbit).unwrap_syscall();
         let read_orbit = Store::<Orbit>::read(0, base).unwrap();
 
         assert_precise(read_orbit.a, orbit.a.mag.into(), 'a does not match', Option::None(()));

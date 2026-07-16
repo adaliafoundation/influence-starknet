@@ -55,12 +55,12 @@ impl ExtractorTypeImpl of ExtractorTypeTrait {
 impl StoreExtractorType of Store<ExtractorType> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<ExtractorType> {
-        return StoreExtractorType::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: ExtractorType) -> SyscallResult<()> {
-        return StoreExtractorType::write_at_offset(address_domain, base, 0, value);
+        return Self::write_at_offset(address_domain, base, 0, value);
     }
 
     #[inline(always)]
@@ -109,7 +109,7 @@ mod tests {
         let base = starknet::storage_base_address_from_felt252(42);
         let mut to_store = ExtractorType { allowed_products: 65000 };
 
-        StoreExtractorType::write(0, base, to_store);
+        StoreExtractorType::write(0, base, to_store).unwrap_syscall();
         let mut to_read = StoreExtractorType::read(0, base).unwrap();
         assert(to_read.allowed_products == 65000, 'wrong allowed_products');
     }

@@ -1,6 +1,7 @@
 use array::{ArrayTrait, SpanTrait};
 use cmp::{min, max};
 use core::clone::Clone;
+use core::num::traits::WideMul;
 use option::OptionTrait;
 use traits::{Into, TryInto};
 
@@ -24,8 +25,8 @@ fn add(ref inventory: Inventory, items: Span<InventoryItem>, mass_eff: Fixed, vo
     _add(ref inventory, items, config);
 
     if config.modifiable {
-        let modified_mass = integer::u64_wide_mul(config.mass, mass_eff.mag) / ONE.into();
-        let modified_volume = integer::u64_wide_mul(config.volume, volume_eff.mag) / ONE.into();
+        let modified_mass: u128 = WideMul::wide_mul(config.mass, mass_eff.mag) / ONE.into();
+        let modified_volume: u128 = WideMul::wide_mul(config.volume, volume_eff.mag) / ONE.into();
         assert((inventory.mass + inventory.reserved_mass).into() <= modified_mass, 'inventory mass exceeded');
         assert((inventory.volume + inventory.reserved_volume).into() <= modified_volume, 'inventory volume exceeded');
     } else {
@@ -135,8 +136,8 @@ fn reserve(ref inventory: Inventory, items: Span<InventoryItem>, mass_eff: Fixed
     _reserve(ref inventory, items, config);
 
     if config.modifiable {
-        let modified_mass = integer::u64_wide_mul(config.mass, mass_eff.mag) / ONE.into();
-        let modified_volume = integer::u64_wide_mul(config.volume, volume_eff.mag) / ONE.into();
+        let modified_mass: u128 = WideMul::wide_mul(config.mass, mass_eff.mag) / ONE.into();
+        let modified_volume: u128 = WideMul::wide_mul(config.volume, volume_eff.mag) / ONE.into();
         assert((inventory.mass + inventory.reserved_mass).into() <= modified_mass, 'inventory mass exceeded');
         assert((inventory.volume + inventory.reserved_volume).into() <= modified_volume, 'inventory volume exceeded');
     } else {
@@ -303,6 +304,22 @@ mod tests {
         mocks::product_type(product_types::NITROGEN);
     }
 
+    fn empty_inventory(inventory_type: u64) -> Inventory {
+        let contents: Array<InventoryItem> = Default::default();
+        let reservations: Array<InventoryItem> = Default::default();
+
+        return Inventory {
+            status: 1,
+            inventory_type: inventory_type,
+            mass: 0,
+            volume: 0,
+            reserved_mass: 0,
+            reserved_volume: 0,
+            contents: contents.span(),
+            reservations: reservations.span()
+        };
+    }
+
     #[test]
     #[available_gas(3000000)]
     fn test_add() {
@@ -313,16 +330,7 @@ mod tests {
             InventoryItemTrait::new(1, 10), InventoryItemTrait::new(2, 20), InventoryItemTrait::new(3, 30)
         ];
 
-        let mut inventory = Inventory {
-            status: 1,
-            inventory_type: types::WAREHOUSE_PRIMARY,
-            mass: 0,
-            volume: 0,
-            reserved_mass: 0,
-            reserved_volume: 0,
-            contents: Default::default().span(),
-            reservations: Default::default().span()
-        };
+        let mut inventory = empty_inventory(types::WAREHOUSE_PRIMARY);
 
         super::add(ref inventory, contents1.span(), FixedTrait::ONE(), FixedTrait::ONE());
         assert(inventory.mass == 60000, 'wrong mass');
@@ -358,16 +366,7 @@ mod tests {
             InventoryItemTrait::new(1, 10), InventoryItemTrait::new(2, 20), InventoryItemTrait::new(3, 30)
         ];
 
-        let mut inventory = Inventory {
-            status: 1,
-            inventory_type: 10,
-            mass: 0,
-            volume: 0,
-            reserved_mass: 0,
-            reserved_volume: 0,
-            contents: Default::default().span(),
-            reservations: Default::default().span()
-        };
+        let mut inventory = empty_inventory(10);
 
         super::add(ref inventory, contents1.span(), FixedTrait::ONE(), FixedTrait::ONE());
 
@@ -393,16 +392,7 @@ mod tests {
         mocks::inventory_type(types::WAREHOUSE_PRIMARY);
 
         let contents1 = array![InventoryItemTrait::new(1, 10), InventoryItemTrait::new(2, 20)];
-        let mut inventory = Inventory {
-            status: 1,
-            inventory_type: 10,
-            mass: 0,
-            volume: 0,
-            reserved_mass: 0,
-            reserved_volume: 0,
-            contents: Default::default().span(),
-            reservations: Default::default().span()
-        };
+        let mut inventory = empty_inventory(10);
 
         super::add(ref inventory, contents1.span(), FixedTrait::ONE(), FixedTrait::ONE());
         let contents2 = array![InventoryItemTrait::new(1, 10), InventoryItemTrait::new(3, 30)];
@@ -422,16 +412,7 @@ mod tests {
             InventoryItemTrait::new(4, 40)
         ];
 
-        let mut inventory = Inventory {
-            status: 1,
-            inventory_type: 10,
-            mass: 0,
-            volume: 0,
-            reserved_mass: 0,
-            reserved_volume: 0,
-            contents: Default::default().span(),
-            reservations: Default::default().span()
-        };
+        let mut inventory = empty_inventory(10);
 
         super::add(ref inventory, contents1.span(), FixedTrait::ONE(), FixedTrait::ONE());
         let contents2 = array![InventoryItemTrait::new(1, 10), InventoryItemTrait::new(3, 30)];
@@ -454,16 +435,7 @@ mod tests {
             InventoryItemTrait::new(1, 10), InventoryItemTrait::new(2, 20), InventoryItemTrait::new(3, 30)
         ];
 
-        let mut inventory = Inventory {
-            status: 1,
-            inventory_type: 10,
-            mass: 0,
-            volume: 0,
-            reserved_mass: 0,
-            reserved_volume: 0,
-            contents: Default::default().span(),
-            reservations: Default::default().span()
-        };
+        let mut inventory = empty_inventory(10);
 
         super::add(ref inventory, contents1.span(), FixedTrait::ONE(), FixedTrait::ONE());
         let contents2 = array![
@@ -489,16 +461,7 @@ mod tests {
         mocks::product_type(product_types::STEEL_SHEET);
         mocks::inventory_type(types::WAREHOUSE_SITE);
 
-        let mut inventory = Inventory {
-            status: 1,
-            inventory_type: types::WAREHOUSE_SITE,
-            mass: 0,
-            volume: 0,
-            reserved_mass: 0,
-            reserved_volume: 0,
-            contents: Default::default().span(),
-            reservations: Default::default().span()
-        };
+        let mut inventory = empty_inventory(types::WAREHOUSE_SITE);
 
         let unreserve = array![InventoryItemTrait::new(product_types::CEMENT, 100000)];
         let reserve = array![
@@ -532,16 +495,7 @@ mod tests {
         mocks::product_type(product_types::STEEL_SHEET);
         mocks::inventory_type(types::WAREHOUSE_SITE);
 
-        let mut inventory = Inventory {
-            status: 1,
-            inventory_type: types::WAREHOUSE_SITE,
-            mass: 0,
-            volume: 0,
-            reserved_mass: 0,
-            reserved_volume: 0,
-            contents: Default::default().span(),
-            reservations: Default::default().span()
-        };
+        let mut inventory = empty_inventory(types::WAREHOUSE_SITE);
 
         let reserve = array![InventoryItemTrait::new(product_types::CEMENT, 250000)];
 

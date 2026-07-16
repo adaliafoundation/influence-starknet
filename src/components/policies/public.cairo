@@ -44,12 +44,12 @@ impl PublicPolicyImpl of PublicPolicyTrait {
 impl StorePublicPolicy of Store<PublicPolicy> {
     #[inline(always)]
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<PublicPolicy> {
-        return StorePublicPolicy::read_at_offset(address_domain, base, 0);
+        return Self::read_at_offset(address_domain, base, 0);
     }
 
     #[inline(always)]
     fn write(address_domain: u32, base: StorageBaseAddress, value: PublicPolicy) -> SyscallResult<()> {
-        return StorePublicPolicy::write_at_offset(
+        return Self::write_at_offset(
             address_domain, base, 0, value
         );
     }
@@ -98,7 +98,7 @@ mod tests {
         let access_policy = PublicPolicyTrait::new(true);
         let base = starknet::storage_base_address_from_felt252(42);
 
-        Store::<PublicPolicy>::write(0, base, access_policy);
+        Store::<PublicPolicy>::write(0, base, access_policy).unwrap_syscall();
         let mut read_policy = Store::<PublicPolicy>::read(0, base).unwrap_syscall();
         assert(read_policy.public, 'not set');
     }

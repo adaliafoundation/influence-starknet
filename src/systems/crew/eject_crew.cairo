@@ -46,7 +46,7 @@ mod EjectCrew {
         crew_details.assert_delegated_to(context.caller);
         crew_details.assert_manned();
         crew_details.assert_not_in_emergency();
-        let mut crew_data = crew_details.component;
+        let mut _crew_data = crew_details.component;
 
         let mut ejected_crew_details = CrewDetailsTrait::new(ejected_crew);
         let mut ejected_crew_data = ejected_crew_details.component;
