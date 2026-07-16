@@ -8,7 +8,7 @@
     "build": "scarb build",
     "format": "cairo-format ./src -r",
     "test": "npm run test-contracts && npm run test-integration",
-    "test-contracts": "cairo-test . -f influence --starknet ",
+    "test-contracts": "scarb test",
     "test-integration": "mocha ./test --require ./test/utils/setup.js --timeout 600000",
     "postinstall": "git submodule update --init --recursive",
     "update-submodules": "git submodule update --remote",
