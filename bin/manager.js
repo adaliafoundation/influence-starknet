@@ -79,35 +79,56 @@ const getAccount = async (accountName, networkName) => {
   return applyFastWaitDefaults(account);
 }
 
-const buildTxOptions = ({ maxFee, tip }) => {
+const buildTxOptions = ({ maxFee, tip, dryRun, ignoreBaseline }) => {
   const options = {};
   if (maxFee != null) options.maxFee = BigInt(maxFee);
   if (tip != null) options.tip = BigInt(tip);
+  if (dryRun) options.dryRun = true;
+  if (ignoreBaseline) options.ignoreBaseline = true;
   return options;
 };
 
-export const update = async ({ name, network, account, skipBuild, maxFee, tip }) => {
+const normalizeNames = ({ name, names }) => {
+  return [name, names]
+    .flat()
+    .filter(Boolean)
+    .flatMap((value) => String(value).split(','))
+    .map((value) => value.trim())
+    .filter(Boolean);
+};
+
+const updateByName = async (name, network, account, options) => {
+  const config = new ContractConfig(network);
+
+  if (!config.config[name]) throw new Error(`Unknown contract or system ${name} on ${network}`);
+
+  if (config.isDispatcher(name)) await updateDispatcher(network, account, options);
+  if (config.isSystem(name)) await updateSystem(name, network, account, options);
+  if (config.isContract(name)) await updateContract(name, network, account, options);
+};
+
+export const update = async ({ name, names, network, account, skipBuild, maxFee, tip, dryRun, ignoreBaseline }) => {
   if (!skipBuild) await buildHelper();
 
   try {
     const resolvedAccount = await getAccount(account, network);
-    const config = new ContractConfig(network);
-    const options = buildTxOptions({ maxFee, tip });
+    const options = buildTxOptions({ maxFee, tip, dryRun, ignoreBaseline });
+    const updateNames = normalizeNames({ name, names });
 
-    if (config.isDispatcher(name)) await updateDispatcher(network, resolvedAccount, options);
-    if (config.isSystem(name)) await updateSystem(name, network, resolvedAccount, options);
-    if (config.isContract(name)) await updateContract(name, network, resolvedAccount, options);
+    for (const updateName of updateNames) {
+      await updateByName(updateName, network, resolvedAccount, options);
+    }
   } catch (error) {
     console.error(error);
   }
 };
 
-export const updateAll = async ({ network, account, skipBuild, maxFee, tip }) => {
+export const updateAll = async ({ network, account, skipBuild, maxFee, tip, dryRun, ignoreBaseline }) => {
   if (!skipBuild) await buildHelper();
 
   try {
     const resolvedAccount = await getAccount(account, network);
-    const options = buildTxOptions({ maxFee, tip });
+    const options = buildTxOptions({ maxFee, tip, dryRun, ignoreBaseline });
     await updateDispatcher(network, resolvedAccount, options);
     const config = new ContractConfig(network);
     const contracts = config.getContracts();
@@ -132,12 +153,19 @@ yargs(hideBin(process.argv))
     help: true,
     builder: (y) => {
       y.version(false);
-      y.option('name', { describe: 'Contract or system name ', demand: true });
+      y.option('name', { describe: 'Contract or system name. Can be repeated or comma-separated.', array: true });
+      y.option('names', { describe: 'Comma-separated contract/system names.' });
       y.option('network', { describe: 'Network config ', alias: 'n', demand: true });
       y.option('account', { describe: 'Account to use', alias: 'a' });
       y.option('skipBuild', { describe: 'Skip building contracts before updating', alias: 's', type: 'boolean' });
       y.option('maxFee', { describe: 'Max fee for transactions', alias: 'm' });
       y.option('tip', { describe: 'Tip for v3 transactions', alias: 't' });
+      y.option('dryRun', { describe: 'Estimate declarations and invokes without submitting transactions', type: 'boolean' });
+      y.option('ignoreBaseline', { describe: 'Ignore accepted baseline hashes when deciding whether to update', type: 'boolean' });
+      y.check((argv) => {
+        if (normalizeNames(argv).length === 0) throw new Error('At least one --name or --names value is required');
+        return true;
+      });
     },
     handler: update
   })
@@ -152,6 +180,8 @@ yargs(hideBin(process.argv))
       y.option('skipBuild', { describe: 'Skip building contracts before updating', alias: 's', type: 'boolean' });
       y.option('maxFee', { describe: 'Max fee for transactions', alias: 'm' });
       y.option('tip', { describe: 'Tip for v3 transactions', alias: 't' });
+      y.option('dryRun', { describe: 'Estimate declarations and invokes without submitting transactions', type: 'boolean' });
+      y.option('ignoreBaseline', { describe: 'Ignore accepted baseline hashes when deciding whether to update', type: 'boolean' });
     },
     handler: updateAll
   })
