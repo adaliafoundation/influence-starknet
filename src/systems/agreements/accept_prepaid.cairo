@@ -680,7 +680,7 @@ mod tests {
 
     #[test]
     #[available_gas(40000000)]
-    fn test_accept_prepaid_with_auction_caps_lease_lapse_at_one_year() {
+    fn test_accept_prepaid_with_auction_caps_lease_lapse_split_at_six_months() {
         starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
         helpers::init();
         mocks::constants();
@@ -746,7 +746,7 @@ mod tests {
         memo.append('auction_controller'.into());
         ISwayDispatcher { contract_address: sway_address }.transfer_with_confirmation(
             starknet::contract_address_const::<'CONTROLLER'>(),
-            8760,
+            4380,
             memo.hash(),
             starknet::contract_address_const::<'DISPATCHER'>()
         );
@@ -758,7 +758,7 @@ mod tests {
         memo.append('auction_building'.into());
         ISwayDispatcher { contract_address: sway_address }.transfer_with_confirmation(
             starknet::contract_address_const::<'BUILDING'>(),
-            991240,
+            995620,
             memo.hash(),
             starknet::contract_address_const::<'DISPATCHER'>()
         );

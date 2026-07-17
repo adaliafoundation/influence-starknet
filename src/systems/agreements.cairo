@@ -30,7 +30,7 @@ mod helpers {
     const AUCTION_STEPS: u64 = 168;
     const AUCTION_STEP_SECONDS: u64 = 3600;
     const AUCTION_DESCENDING_PERIOD: u64 = 604800;
-    const MAX_LEASE_LAPSE_SECONDS: u64 = 31536000;
+    const MAX_LEASE_LAPSE_SECONDS: u64 = 15768000;
 
     fn auction_price_at_step(step: u64) -> u64 {
         if step < 84 {
