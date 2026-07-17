@@ -107,11 +107,7 @@ mod ExtendPrepaidAgreement {
         let delegate = components::get::<Crew>(controller.path()).expect(errors::CREW_NOT_FOUND).delegated_to;
 
         // Calculate payment amount
-        let mut paid_term = added_term;
-        if expired_renewal {
-            paid_term += context.now - agreement_data.end_time;
-        }
-        let amount = (agreement_data.rate * paid_term).div_ceil(3600);
+        let amount = (agreement_data.rate * added_term).div_ceil(3600);
 
         // Confirm receipt on SWAY contract for payment to controller
         let mut memo: Array<felt252> = Default::default();
@@ -440,7 +436,7 @@ mod tests {
 
         starknet::testing::set_block_timestamp(7200);
 
-        // Pay for the lapse plus the requested renewed term.
+        // Pay for the requested renewed term only.
         starknet::testing::set_contract_address(starknet::contract_address_const::<'PLAYER2'>());
         let mut memo: Array<felt252> = Default::default();
         memo.append(lot.into());
@@ -448,7 +444,7 @@ mod tests {
         memo.append(building_controller.into());
         ISwayDispatcher { contract_address: sway_address }.transfer_with_confirmation(
             starknet::contract_address_const::<'CONTROLLER'>(),
-            7200,
+            3600,
             memo.hash(),
             starknet::contract_address_const::<'DISPATCHER'>()
         );
