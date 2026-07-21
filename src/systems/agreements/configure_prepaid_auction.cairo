@@ -1,5 +1,5 @@
 #[starknet::contract]
-mod ConfigurePrepaidAgreementAuction {
+mod ConfigurePrepaidAuction {
     use starknet::ContractAddress;
 
     use influence::components::{PrepaidAgreementAuctionSettings, PrepaidAgreementAuctionSettingsTrait};
@@ -69,7 +69,7 @@ mod tests {
     use influence::types::EntityTrait;
     use influence::test::{helpers, mocks};
 
-    use super::ConfigurePrepaidAgreementAuction;
+    use super::ConfigurePrepaidAuction;
 
     #[test]
     #[available_gas(15000000)]
@@ -80,8 +80,8 @@ mod tests {
         let controller = mocks::delegated_crew(1, 'CONTROLLER');
         components::set::<Control>(asteroid.path(), ControlTrait::new(controller));
 
-        let mut state = ConfigurePrepaidAgreementAuction::contract_state_for_testing();
-        ConfigurePrepaidAgreementAuction::run(
+        let mut state = ConfigurePrepaidAuction::contract_state_for_testing();
+        ConfigurePrepaidAuction::run(
             ref state, asteroid, modes::AUTO, 3600, controller, mocks::context('CONTROLLER')
         );
 
