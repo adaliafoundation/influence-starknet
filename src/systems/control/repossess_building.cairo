@@ -101,8 +101,8 @@ mod tests {
     use starknet::testing;
 
     use influence::components;
-    use influence::components::{Control, ControlTrait, Location, LocationTrait, Unique, WhitelistAgreement,
-        WhitelistAgreementTrait};
+    use influence::components::{Control, ControlTrait, Location, LocationTrait, StarterPackBuildingFunding, Unique,
+        WhitelistAgreement, WhitelistAgreementTrait};
     use influence::config::{entities, permissions};
     use influence::systems::agreements::helpers::{agreement_path, use_lot_path};
     use influence::types::entity::EntityTrait;
@@ -121,6 +121,9 @@ mod tests {
         let refinery = mocks::public_refinery(crew1, 1);
         let lot = EntityTrait::from_position(1, 1);
         components::set::<Location>(refinery.path(), LocationTrait::new(lot));
+        components::set::<StarterPackBuildingFunding>(
+            refinery.path(), StarterPackBuildingFunding { crew: crew1, restricted_until: 200 }
+        );
 
         let caller_crew = influence::test::mocks::delegated_crew(2, 'PLAYER');
         components::set::<Control>(asteroid.path(), ControlTrait::new(caller_crew));
@@ -134,6 +137,8 @@ mod tests {
         let control_data = components::get::<Control>(refinery.path()).expect('control not set');
         assert(control_data.controller == caller_crew, 'control not transferred');
         assert(components::get::<Unique>(use_lot_path(lot)).is_none(), 'use lot not cleared');
+        let funding = components::get::<StarterPackBuildingFunding>(refinery.path()).expect('funding missing');
+        assert(funding.crew == crew1, 'funding crew changed');
     }
 
     #[test]

@@ -6,7 +6,7 @@ mod ExtendPrepaidAgreement {
     use traits::{Into, TryInto};
 
     use influence::{components, config, contracts};
-    use influence::common::{crew::CrewDetailsTrait, math::RoundedDivTrait};
+    use influence::common::{crew::CrewDetailsTrait, math::RoundedDivTrait, starter_pack};
     use influence::components::{
         Control, Crew, CrewTrait, PrepaidAgreement, PrepaidAgreementTrait, PrepaidAgreementAuction,
         PrepaidAgreementAuctionTrait, Unique
@@ -88,6 +88,7 @@ mod ExtendPrepaidAgreement {
         }
 
         // Check that the agreement is not in notice period and the added term is not too long
+        starter_pack::prepare_lot_lease_extension(prepaid_path, context.now, agreement_data.end_time);
         assert(agreement_data.notice_time == 0, errors::AGREEMENT_CANCELLED);
         assert(added_term <= config::get('MAX_POLICY_DURATION').try_into().unwrap(), errors::AGREEMENT_TOO_LONG);
 
@@ -176,7 +177,7 @@ mod tests {
 
     use influence::components;
     use influence::components::{Control, ControlTrait, Crew, CrewTrait, Location, LocationTrait,
-        PrepaidAgreement, PrepaidAgreementTrait, Unique};
+        PrepaidAgreement, PrepaidAgreementTrait, StarterPackLotLease, Unique};
     use influence::config::{entities, permissions};
     use influence::contracts::sway::{Sway, ISwayDispatcher, ISwayDispatcherTrait};
     use influence::systems::agreements::helpers::{agreement_path, lot_use_path, use_lot_path};
@@ -239,6 +240,93 @@ mod tests {
         // Check that the agreement was extended
         let agreement_data = components::get::<PrepaidAgreement>(prepaid_path).unwrap();
         assert(agreement_data.end_time == 20800, 'wrong end time');
+    }
+
+    #[test]
+    #[should_panic(expected: ('starter lease active', 'ENTRYPOINT_FAILED'))]
+    #[available_gas(15000000)]
+    fn test_extend_starter_lot_lease_rejects_active_free_term() {
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
+        helpers::init();
+        mocks::constants();
+        let asteroid = mocks::adalia_prime();
+
+        let controller_crew = influence::test::mocks::delegated_crew(1, 'CONTROLLER');
+        components::set::<Control>(asteroid.path(), ControlTrait::new(controller_crew));
+
+        let lot = EntityTrait::from_position(1, 1);
+        let caller_crew = influence::test::mocks::delegated_crew(2, 'PLAYER');
+        components::set::<Location>(caller_crew.path(), LocationTrait::new(asteroid));
+
+        starknet::testing::set_block_timestamp(10000);
+        let prepaid_path = agreement_path(lot, permissions::USE_LOT, caller_crew.into());
+        components::set::<PrepaidAgreement>(
+            prepaid_path,
+            PrepaidAgreementTrait::new(1000, 2628000, 2628000, 0, 2628000)
+        );
+        components::set::<StarterPackLotLease>(prepaid_path, StarterPackLotLease { crew: caller_crew });
+
+        let class_hash: ClassHash = ExtendPrepaidAgreement::TEST_CLASS_HASH.try_into().unwrap();
+        IExtendPrepaidAgreementLibraryDispatcher { class_hash: class_hash }.run(
+            lot, permissions::USE_LOT, caller_crew, 2628000, caller_crew, mocks::context('PLAYER')
+        );
+    }
+
+    #[test]
+    #[available_gas(30000000)]
+    fn test_extend_starter_lot_lease_after_expiry_requires_payment_and_clears_marker() {
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
+        helpers::init();
+        mocks::constants();
+        let asteroid = mocks::adalia_prime();
+
+        let sway_address = helpers::deploy_sway();
+        let amount: u256 = (100 * 1000000).into();
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'ADMIN'>());
+        ISwayDispatcher { contract_address: sway_address }.mint(starknet::contract_address_const::<'PLAYER'>(), amount);
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
+
+        let controller_crew = influence::test::mocks::delegated_crew(1, 'CONTROLLER');
+        components::set::<Control>(asteroid.path(), ControlTrait::new(controller_crew));
+
+        let lot = EntityTrait::from_position(1, 1);
+        let caller_crew = influence::test::mocks::delegated_crew(2, 'PLAYER');
+        components::set::<Location>(caller_crew.path(), LocationTrait::new(asteroid));
+        let warehouse = influence::test::mocks::public_warehouse(caller_crew, 3);
+        components::set::<Location>(warehouse.path(), LocationTrait::new(lot));
+        components::set::<Unique>(lot_use_path(lot), Unique { unique: warehouse.into() });
+        components::set::<Unique>(use_lot_path(lot), Unique { unique: caller_crew.into() });
+
+        let prepaid_path = agreement_path(lot, permissions::USE_LOT, caller_crew.into());
+        components::set::<PrepaidAgreement>(
+            prepaid_path,
+            PrepaidAgreementTrait::new(1000, 2628000, 2628000, 0, 2628000)
+        );
+        components::set::<StarterPackLotLease>(prepaid_path, StarterPackLotLease { crew: caller_crew });
+
+        starknet::testing::set_block_timestamp(2628000);
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'PLAYER'>());
+        let mut memo: Array<felt252> = Default::default();
+        memo.append(lot.into());
+        memo.append(permissions::USE_LOT.into());
+        memo.append(caller_crew.into());
+        ISwayDispatcher { contract_address: sway_address }.transfer_with_confirmation(
+            starknet::contract_address_const::<'CONTROLLER'>(),
+            730000,
+            memo.hash(),
+            starknet::contract_address_const::<'DISPATCHER'>()
+        );
+
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
+        let class_hash: ClassHash = ExtendPrepaidAgreement::TEST_CLASS_HASH.try_into().unwrap();
+        IExtendPrepaidAgreementLibraryDispatcher { class_hash: class_hash }.run(
+            lot, permissions::USE_LOT, caller_crew, 2628000, caller_crew, mocks::context('PLAYER')
+        );
+
+        let agreement_data = components::get::<PrepaidAgreement>(prepaid_path).unwrap();
+        assert(agreement_data.start_time == 2628000, 'wrong start time');
+        assert(agreement_data.end_time == 5256000, 'wrong end time');
+        assert(components::get::<StarterPackLotLease>(prepaid_path).is_none(), 'marker not cleared');
     }
 
     #[test]

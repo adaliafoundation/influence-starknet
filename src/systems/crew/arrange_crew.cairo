@@ -83,12 +83,13 @@ mod ArrangeCrew {
 
 #[cfg(test)]
 mod tests {
-    use array::{ArrayTrait, SpanTrait};
+    use array::{Array, ArrayTrait, SpanTrait};
     use option::OptionTrait;
     use traits::Into;
 
     use influence::components;
-    use influence::components::{Crew, CrewTrait, Crewmate, CrewmateTrait, Location, LocationTrait};
+    use influence::components::{BuildingAllowance, Crew, CrewTrait, Crewmate, CrewmateTrait, Location, LocationTrait,
+        StarterPack};
     use influence::config;
     use influence::test::{helpers, mocks};
     use influence::types::{Entity, EntityTrait};
@@ -122,6 +123,41 @@ mod tests {
         assert(*crew_data.roster.at(0) == 3, 'incorrect crewmate');
         assert(*crew_data.roster.at(1) == 2, 'incorrect crewmate');
         assert(*crew_data.roster.at(2) == 1, 'incorrect crewmate');
+    }
+
+    #[test]
+    #[available_gas(10000000)]
+    fn test_arrange_crew_preserves_starter_pack() {
+        helpers::init();
+        config::set('TIME_ACCELERATION', 24);
+        starknet::testing::set_block_timestamp(100);
+
+        let _asteroid = influence::test::mocks::asteroid();
+        let crew = influence::test::mocks::delegated_crew(1, 'PLAYER');
+        let station = influence::test::mocks::public_habitat(crew, 37);
+        components::set::<Location>(crew.path(), LocationTrait::new(station));
+
+        let mut crew_data = components::get::<Crew>(crew.path()).unwrap();
+        crew_data.roster = array![1, 2, 3].span();
+        components::set::<Crew>(crew.path(), crew_data);
+        let allowances: Array<BuildingAllowance> = Default::default();
+        components::set::<StarterPack>(crew.path(), StarterPack {
+            product_id: 1,
+            restricted_until: 200,
+            valid: true,
+            invalidated_at: 0,
+            building_allowances: allowances.span(),
+            lot_allowance: 0,
+            food_reload_allowance: 1,
+            core_sample_allowance: 1
+        });
+
+        let mut state = ArrangeCrew::contract_state_for_testing();
+        ArrangeCrew::run(ref state, array![3, 2, 1].span(), crew, mocks::context('PLAYER'));
+
+        let starter_pack = components::get::<StarterPack>(crew.path()).unwrap();
+        assert(starter_pack.valid, 'starter pack invalidated');
+        assert(starter_pack.invalidated_at == 0, 'wrong invalidated at');
     }
 
     #[test]

@@ -95,7 +95,7 @@ mod tests {
     use influence::components::crew::{Crew, CrewTrait};
     use influence::components::{Control, ControlTrait, ContractPolicy, ContractPolicyTrait, Location, LocationTrait,
         PrepaidPolicy, PrepaidPolicyTrait, PrepaidMerklePolicy, PrepaidMerklePolicyTrait, PublicPolicy,
-        PublicPolicyTrait};
+        PublicPolicyTrait, StarterPackBuildingFunding};
 
     use super::{
         AssignContractPolicy,
@@ -136,6 +136,28 @@ mod tests {
         let mut state = RemovePublicPolicy::contract_state_for_testing();
         RemovePublicPolicy::run(ref state, entity, permission, caller_crew, mocks::context('PLAYER'));
         assert(components::get::<PublicPolicy>(keys).is_none(), 'assignment not removed');
+    }
+
+    #[test]
+    #[should_panic(expected: ('starter funded restricted', ))]
+    #[available_gas(8000000)]
+    fn test_rejects_starter_funded_building_policy_before_restriction_lifts() {
+        starknet::testing::set_block_timestamp(100);
+        let asteroid = mocks::asteroid();
+        let entity = EntityTrait::new(entities::BUILDING, 1);
+        let permission = permissions::ADD_PRODUCTS;
+        let caller_crew = mocks::delegated_crew(3, 'PLAYER');
+
+        components::set::<Control>(entity.path(), ControlTrait::new(caller_crew));
+        components::set::<Location>(entity.path(), LocationTrait::new(EntityTrait::from_position(asteroid.id, 1)));
+        components::set::<Location>(caller_crew.path(), LocationTrait::new(asteroid));
+        components::set::<StarterPackBuildingFunding>(entity.path(), StarterPackBuildingFunding {
+            crew: caller_crew,
+            restricted_until: 200
+        });
+
+        let mut state = AssignPublicPolicy::contract_state_for_testing();
+        AssignPublicPolicy::run(ref state, entity, permission, caller_crew, mocks::context('PLAYER'));
     }
 
     #[test]

@@ -127,6 +127,7 @@ const testnetConfig = {
 
   // Sales
   GrantAdalians: { isSystem: true },
+  GrantOffchainStarterPack: { isSystem: true },
   GrantStarterPack: { isSystem: true },
   PurchaseAdalian: { isSystem: true },
   PurchaseAsteroid: { isSystem: true },
@@ -286,6 +287,7 @@ export default {
 
     // Sales
     GrantAdalians: { isSystem: true },
+    GrantOffchainStarterPack: { isSystem: true },
     GrantStarterPack: { isSystem: true },
     PurchaseAdalian: { isSystem: true },
     PurchaseAsteroid: { isSystem: true },

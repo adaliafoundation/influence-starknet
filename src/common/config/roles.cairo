@@ -1,0 +1,2 @@
+const ADMIN: u64 = 1;
+const OFFCHAIN_STARTER_PACK_GRANTER: u64 = 2;

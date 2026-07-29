@@ -7,7 +7,7 @@ mod AcceptPrepaidMerkleAgreement {
     use traits::{Into, TryInto};
 
     use influence::{components, config, contracts};
-    use influence::common::{crew::CrewDetailsTrait, math::RoundedDivTrait};
+    use influence::common::{crew::CrewDetailsTrait, math::RoundedDivTrait, starter_pack};
     use influence::components::{Building, Crew, CrewTrait, Control, ControlTrait, PrepaidMerklePolicy,
         PrepaidMerklePolicyTrait, PrepaidAgreement, PrepaidAgreementTrait, PrepaidAgreementAuction,
         PrepaidAgreementAuctionTrait, Unique};
@@ -56,6 +56,7 @@ mod AcceptPrepaidMerkleAgreement {
         // Check that crew is delegated, and ready
         let mut crew_details = CrewDetailsTrait::new(caller_crew);
         crew_details.assert_delegated_to(context.caller);
+        starter_pack::assert_target_unrestricted(target, context.now);
 
         // Check for current policy
         let mut controller_crew = EntityTrait::new(entities::CREW, 0);

@@ -1,5 +1,11 @@
 use starknet::{ContractAddress, EthAddress};
 
+#[derive(Copy, Drop, Serde)]
+struct TransferRestriction {
+    restricted_until: u64,
+    restriction_authority: ContractAddress
+}
+
 #[starknet::interface]
 trait ICrew<TContractState> {
     fn add_grant(ref self: TContractState, account: ContractAddress, role: u64);
@@ -8,6 +14,17 @@ trait ICrew<TContractState> {
 
     fn current_token(self: @TContractState) -> u256;
     fn mint_with_auto_id(ref self: TContractState, to: ContractAddress) -> u256;
+    fn transfer_with_restriction(
+        ref self: TContractState,
+        from: ContractAddress,
+        to: ContractAddress,
+        token_id: u256,
+        restricted_until: u64,
+        restriction_authority: ContractAddress
+    );
+    fn recall_restricted(ref self: TContractState, token_id: u256);
+    fn restriction(self: @TContractState, token_id: u256) -> TransferRestriction;
+    fn is_restricted(self: @TContractState, token_id: u256) -> bool;
     fn get_l1_bridge_address(self: @TContractState) -> EthAddress;
     fn set_l1_bridge_address(ref self: TContractState, address: EthAddress);
     fn bridge_to_l1(ref self: TContractState, to_address: EthAddress, token_ids: Array<u128>);
@@ -48,7 +65,7 @@ trait ICrew<TContractState> {
 mod Crew {
     use array::{ArrayTrait, SpanTrait};
     use option::{OptionTrait};
-    use starknet::{ClassHash, ContractAddress, SyscallResultTrait, get_caller_address};
+    use starknet::{ClassHash, ContractAddress, SyscallResultTrait, get_caller_address, info::get_block_timestamp};
     use starknet::eth_address::{EthAddress};
     use starknet::info::{get_contract_address};
     use starknet::storage::Map;
@@ -56,6 +73,7 @@ mod Crew {
     use traits::{Into, TryInto};
     use zeroable::{Zeroable};
 
+    use super::TransferRestriction;
     use influence::contracts::sway::{ISwayDispatcher, ISwayDispatcherTrait};
     use influence::interfaces::erc165::{
         IERC165Dispatcher, IERC165DispatcherTrait, IACCOUNT_ID, IERC165_ID, IERC721_ID, IERC721_METADATA_ID,
@@ -83,7 +101,9 @@ mod Crew {
         sell_orders: Map::<u256, u128>,
         sway_address: ContractAddress,
         token_approvals: Map::<u256, ContractAddress>,
-        token_tracker: u256
+        token_tracker: u256,
+        transfer_restriction_until: Map::<u256, u64>,
+        transfer_restriction_authority: Map::<u256, ContractAddress>
     }
 
     #[event]
@@ -170,6 +190,50 @@ mod Crew {
         _mint(ref self, to, token_id);
         self.token_tracker.write(self.token_tracker.read() + 1);
         return token_id;
+    }
+
+    #[external(v0)]
+    fn is_restricted(self: @ContractState, token_id: u256) -> bool {
+        return restriction(self, token_id).restricted_until > get_block_timestamp();
+    }
+
+    #[external(v0)]
+    fn restriction(self: @ContractState, token_id: u256) -> TransferRestriction {
+        let restricted_until = self.transfer_restriction_until.read(token_id);
+        let restriction_authority = self.transfer_restriction_authority.read(token_id);
+        if restricted_until == 0 || restricted_until <= get_block_timestamp() {
+            return TransferRestriction { restricted_until: 0, restriction_authority: Zeroable::zero() };
+        }
+        return TransferRestriction { restricted_until: restricted_until, restriction_authority: restriction_authority };
+    }
+
+    #[external(v0)]
+    fn transfer_with_restriction(
+        ref self: ContractState,
+        from: ContractAddress,
+        to: ContractAddress,
+        token_id: u256,
+        restricted_until: u64,
+        restriction_authority: ContractAddress
+    ) {
+        assert(_is_approved_or_owner(@self, get_caller_address(), token_id), 'ERC721: unauthorized caller');
+        assert(restricted_until > get_block_timestamp(), 'ERC721: invalid restriction');
+        assert(!restriction_authority.is_zero(), 'ERC721: invalid authority');
+        assert(!is_restricted(@self, token_id), 'ERC721: transfer restricted');
+
+        self.transfer_restriction_until.write(token_id, restricted_until);
+        self.transfer_restriction_authority.write(token_id, restriction_authority);
+        _transfer_unchecked(ref self, from, to, token_id);
+    }
+
+    #[external(v0)]
+    fn recall_restricted(ref self: ContractState, token_id: u256) {
+        let restriction_data = restriction(@self, token_id);
+        assert(restriction_data.restriction_authority == get_caller_address(), 'ERC721: unauthorized caller');
+        let owner = owner_of(@self, token_id);
+        self.transfer_restriction_until.write(token_id, 0);
+        self.transfer_restriction_authority.write(token_id, Zeroable::zero());
+        _transfer_unchecked(ref self, owner, restriction_data.restriction_authority, token_id);
     }
 
     // Permissions ----------------------------------------------------------------------------------------------------
@@ -506,6 +570,12 @@ mod Crew {
 
     fn _transfer(ref self: ContractState, from: ContractAddress, to: ContractAddress, token_id: u256) {
         assert(!to.is_zero(), 'ERC721: invalid receiver');
+        assert(!is_restricted(@self, token_id), 'ERC721: transfer restricted');
+        _transfer_unchecked(ref self, from, to, token_id);
+    }
+
+    fn _transfer_unchecked(ref self: ContractState, from: ContractAddress, to: ContractAddress, token_id: u256) {
+        assert(!to.is_zero(), 'ERC721: invalid receiver');
         let owner = owner_of(@self, token_id);
         assert(from == owner, 'ERC721: wrong sender');
 
@@ -600,6 +670,36 @@ mod tests {
     }
 
     #[test]
+    #[available_gas(3000000)]
+    fn test_transfer_with_restriction() {
+        let caller = starknet::contract_address_const::<'ADMIN'>();
+        let receiver = starknet::contract_address_const::<'RECEIVER'>();
+        let restriction_authority = starknet::contract_address_const::<'AUTHORITY'>();
+        starknet::testing::set_caller_address(caller);
+        starknet::testing::set_block_timestamp(100);
+
+        let mut state = Crew::contract_state_for_testing();
+        Crew::constructor(ref state, 'Influence Crews', 'INFCRW', caller);
+        Crew::add_grant(ref state, caller, Crew::roles::MINTER);
+
+        let normal_token_id = Crew::mint_with_auto_id(ref state, caller);
+        assert(!Crew::is_restricted(@state, normal_token_id), 'normal token restricted');
+
+        let restricted_token_id = Crew::mint_with_auto_id(ref state, caller);
+        Crew::transfer_with_restriction(ref state, caller, receiver, restricted_token_id, 200, restriction_authority);
+        assert(Crew::is_restricted(@state, restricted_token_id), 'not restricted');
+        assert(Crew::ownerOf(@state, restricted_token_id) == receiver, 'wrong owner');
+        let restriction = Crew::restriction(@state, restricted_token_id);
+        assert(restriction.restricted_until == 200, 'wrong restriction');
+        assert(restriction.restriction_authority == restriction_authority, 'wrong restriction_authority');
+
+        starknet::testing::set_block_timestamp(200);
+        assert(!Crew::is_restricted(@state, restricted_token_id), 'expired restriction active');
+        let restriction = Crew::restriction(@state, restricted_token_id);
+        assert(restriction.restricted_until == 0, 'expired restriction returned');
+    }
+
+    #[test]
     #[available_gas(2000000)]
     fn test_transfer() {
         let caller = starknet::contract_address_const::<'ADMIN'>();
@@ -614,6 +714,71 @@ mod tests {
         Crew::transfer_from(ref state, caller, receiver, token_id);
         let res = Crew::ownerOf(@state, token_id);
         assert(res == receiver, 'receiver should be owner');
+    }
+
+    #[test]
+    #[available_gas(2000000)]
+    #[should_panic(expected: ('ERC721: transfer restricted', ))]
+    fn test_transfer_restricted() {
+        let caller = starknet::contract_address_const::<'ADMIN'>();
+        starknet::testing::set_caller_address(caller);
+        starknet::testing::set_block_timestamp(100);
+
+        let mut state = Crew::contract_state_for_testing();
+        Crew::constructor(ref state, 'Influence Crews', 'INFCRW', caller);
+        Crew::add_grant(ref state, caller, Crew::roles::MINTER);
+
+        let token_id = Crew::mint_with_auto_id(ref state, caller);
+        let receiver = starknet::contract_address_const::<'RECEIVER'>();
+        Crew::transfer_with_restriction(ref state, caller, receiver, token_id, 200, caller);
+        starknet::testing::set_caller_address(receiver);
+        Crew::transfer_from(ref state, receiver, caller, token_id);
+    }
+
+    #[test]
+    #[available_gas(3000000)]
+    fn test_recall_restricted() {
+        let caller = starknet::contract_address_const::<'ADMIN'>();
+        let receiver = starknet::contract_address_const::<'RECEIVER'>();
+        let restriction_authority = starknet::contract_address_const::<'AUTHORITY'>();
+        starknet::testing::set_caller_address(caller);
+        starknet::testing::set_block_timestamp(100);
+
+        let mut state = Crew::contract_state_for_testing();
+        Crew::constructor(ref state, 'Influence Crews', 'INFCRW', caller);
+        Crew::add_grant(ref state, caller, Crew::roles::MINTER);
+
+        let token_id = Crew::mint_with_auto_id(ref state, caller);
+        Crew::transfer_with_restriction(ref state, caller, receiver, token_id, 200, restriction_authority);
+
+        starknet::testing::set_caller_address(restriction_authority);
+        Crew::recall_restricted(ref state, token_id);
+        assert(Crew::ownerOf(@state, token_id) == restriction_authority, 'not recalled');
+        assert(!Crew::is_restricted(@state, token_id), 'restriction not cleared');
+
+        Crew::transfer_from(ref state, restriction_authority, receiver, token_id);
+        assert(Crew::ownerOf(@state, token_id) == receiver, 'transfer failed');
+    }
+
+    #[test]
+    #[available_gas(3000000)]
+    #[should_panic(expected: ('ERC721: unauthorized caller', ))]
+    fn test_recall_restricted_rejects_non_authority() {
+        let caller = starknet::contract_address_const::<'ADMIN'>();
+        let receiver = starknet::contract_address_const::<'RECEIVER'>();
+        let restriction_authority = starknet::contract_address_const::<'AUTHORITY'>();
+        starknet::testing::set_caller_address(caller);
+        starknet::testing::set_block_timestamp(100);
+
+        let mut state = Crew::contract_state_for_testing();
+        Crew::constructor(ref state, 'Influence Crews', 'INFCRW', caller);
+        Crew::add_grant(ref state, caller, Crew::roles::MINTER);
+
+        let token_id = Crew::mint_with_auto_id(ref state, caller);
+        Crew::transfer_with_restriction(ref state, caller, receiver, token_id, 200, restriction_authority);
+
+        starknet::testing::set_caller_address(caller);
+        Crew::recall_restricted(ref state, token_id);
     }
 
     #[test]

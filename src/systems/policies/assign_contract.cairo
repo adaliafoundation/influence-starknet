@@ -5,7 +5,7 @@ mod AssignContractPolicy {
     use traits::Into;
 
     use influence::components;
-    use influence::common::crew::CrewDetailsTrait;
+    use influence::common::{crew::CrewDetailsTrait, starter_pack};
     use influence::components::{ContractPolicy, ContractPolicyTrait, Crew, CrewTrait};
     use influence::config::errors;
     use influence::systems::policies::helpers::{assert_no_current_policy, policy_path};
@@ -42,6 +42,7 @@ mod AssignContractPolicy {
         crew_details.assert_delegated_to(context.caller);
         crew_details.assert_manned();
         caller_crew.assert_controls(target);
+        starter_pack::assert_target_unrestricted(target, context.now);
 
         // Check that no policy assigned
         let path = policy_path(target, permission);

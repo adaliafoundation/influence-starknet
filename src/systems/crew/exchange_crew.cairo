@@ -6,7 +6,7 @@ mod ExchangeCrew {
     use starknet::ContractAddress;
     use traits::{Into, TryInto};
 
-    use influence::common::{crew::{CrewDetailsTrait, time_since_fed}};
+    use influence::common::{crew::{CrewDetailsTrait, time_since_fed}, starter_pack};
     use influence::{components, contracts};
     use influence::components::{Control, ControlTrait, Crew, CrewTrait, Location, LocationTrait};
     use influence::config::{errors, entities};
@@ -126,6 +126,8 @@ mod ExchangeCrew {
 
         let crew1_old = crew1_data.roster;
         let crew2_old = crew2_data.roster;
+        let crew1_changed = !same_roster(crew1_old, comp1);
+        let crew2_changed = !same_roster(crew2_old, comp2);
         crew1_data.roster = comp1;
         crew2_data.roster = comp2;
 
@@ -167,6 +169,8 @@ mod ExchangeCrew {
         // Update the crews
         components::set::<Crew>(crew1.path(), crew1_data);
         components::set::<Crew>(crew2.path(), crew2_data);
+        if crew1_changed { starter_pack::invalidate(crew1, context.now); }
+        if crew2_changed { starter_pack::invalidate(crew2, context.now); }
 
         self.emit(CrewmatesExchanged {
             crew1: crew1,
@@ -181,13 +185,33 @@ mod ExchangeCrew {
 
     fn assert_can_move_crewmate(caller: ContractAddress, origin_delegate: bool, dest_delegate: bool, crewmate: u64) {
         let crewmate_address = contracts::get('Crewmate');
-        let owner = ICrewmateDispatcher { contract_address: crewmate_address }.owner_of(crewmate.into());
+        let crewmate_contract = ICrewmateDispatcher { contract_address: crewmate_address };
+        assert(!crewmate_contract.is_restricted(crewmate.into()), 'crewmate restricted');
+        let owner = crewmate_contract.owner_of(crewmate.into());
 
         if (!dest_delegate) {
             assert(false, errors::INCORRECT_DELEGATE);
         } else if (!origin_delegate && owner != caller) {
             assert(false, errors::INCORRECT_OWNER);
         }
+    }
+
+    fn same_roster(left: Span<u64>, right: Span<u64>) -> bool {
+        if left.len() != right.len() { return false; }
+
+        let mut same = true;
+        let mut iter = 0;
+        loop {
+            if iter >= left.len() { break; }
+            let crewmate = *left.at(iter);
+            if left.occurrences_of(crewmate) != right.occurrences_of(crewmate) {
+                same = false;
+                break;
+            }
+            iter += 1;
+        };
+
+        return same;
     }
 }
 
@@ -200,7 +224,7 @@ mod tests {
     use traits::Into;
 
     use influence::{components, config};
-    use influence::components::{Crew, CrewTrait, Location, LocationTrait,
+    use influence::components::{BuildingAllowance, Crew, CrewTrait, Location, LocationTrait, StarterPack,
         crewmate::{classes, collections, Crewmate, CrewmateTrait}};
     use influence::config::entities;
     use influence::contracts::crew::{ICrewDispatcher, ICrewDispatcherTrait};
@@ -240,9 +264,9 @@ mod tests {
         };
 
         ICrewmateDispatcher { contract_address: crewmate_address }.mint_with_auto_id(player);
-        components::set::<Crewmate>(EntityTrait::new(entities::CREWMATE, 1).path(), default_crewmate);
+        components::set::<Crewmate>(EntityTrait::new(entities::CREWMATE, 20000).path(), default_crewmate);
         ICrewmateDispatcher { contract_address: crewmate_address }.mint_with_auto_id(player);
-        components::set::<Crewmate>(EntityTrait::new(entities::CREWMATE, 2).path(), default_crewmate);
+        components::set::<Crewmate>(EntityTrait::new(entities::CREWMATE, 20001).path(), default_crewmate);
         ICrewmateDispatcher { contract_address: crewmate_address }.mint_with_auto_id(player);
         components::set::<Crewmate>(EntityTrait::new(entities::CREWMATE, 3).path(), default_crewmate);
         ICrewmateDispatcher { contract_address: crewmate_address }.mint_with_auto_id(player);
@@ -258,6 +282,17 @@ mod tests {
         crew1_data.roster = array![1, 2, 3].span();
         components::set::<Crew>(crew1.path(), crew1_data);
         crew1_data = components::get::<Crew>(crew1.path()).unwrap();
+        let allowances: Array<BuildingAllowance> = Default::default();
+        components::set::<StarterPack>(crew1.path(), StarterPack {
+            product_id: 1,
+            restricted_until: 200,
+            valid: true,
+            invalidated_at: 0,
+            building_allowances: allowances.span(),
+            lot_allowance: 0,
+            food_reload_allowance: 0,
+            core_sample_allowance: 0
+        });
 
         // Add some to another crew
         let crew2 = influence::test::mocks::delegated_crew(2, 'PLAYER');
@@ -278,6 +313,73 @@ mod tests {
         assert(crew1_data.roster.len() == roster1.len(), 'crew 1 roster incorrect');
         crew2_data = components::get::<Crew>(crew2.path()).unwrap();
         assert(crew2_data.roster.len() == roster2.len(), 'crew 2 roster incorrect');
+        let starter_pack = components::get::<StarterPack>(crew1.path()).unwrap();
+        assert(!starter_pack.valid, 'pack should invalidate');
+        assert(starter_pack.invalidated_at == 100, 'wrong invalidated at');
+    }
+
+    #[test]
+    #[available_gas(20000000)]
+    #[should_panic(expected: ('crewmate restricted', ))]
+    fn test_rejects_restricted_crewmate_exchange() {
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
+        helpers::init();
+        mocks::constants();
+        starknet::testing::set_block_timestamp(100);
+
+        let crewmate_address = helpers::deploy_crewmate();
+
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'ADMIN'>());
+        ICrewmateDispatcher { contract_address: crewmate_address }
+            .add_grant(starknet::contract_address_const::<'DISPATCHER'>(), 2);
+
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
+        let player = starknet::contract_address_const::<'PLAYER'>();
+
+        let impactful: Array<u64> = Default::default();
+        let cosmetic: Array<u64> = Default::default();
+        let default_crewmate = Crewmate {
+            status: 1,
+            collection: collections::ADALIAN,
+            class: classes::MINER,
+            title: 0,
+            appearance: 0,
+            impactful: impactful.span(),
+            cosmetic: cosmetic.span()
+        };
+
+        let crewmate_contract = ICrewmateDispatcher { contract_address: crewmate_address };
+        let crewmate_id = crewmate_contract.mint_with_auto_id(starknet::contract_address_const::<'DISPATCHER'>());
+        crewmate_contract.transfer_with_restriction(
+            starknet::contract_address_const::<'DISPATCHER'>(), player, crewmate_id, 200, starknet::contract_address_const::<'ADMIN'>()
+        );
+        components::set::<Crewmate>(EntityTrait::new(entities::CREWMATE, 20000).path(), default_crewmate);
+        crewmate_contract.mint_with_auto_id(player);
+        components::set::<Crewmate>(EntityTrait::new(entities::CREWMATE, 20001).path(), default_crewmate);
+
+        let _asteroid = influence::test::mocks::asteroid();
+        let crew1 = influence::test::mocks::delegated_crew(1, 'PLAYER');
+        let station = influence::test::mocks::public_habitat(crew1, 37);
+        components::set::<Location>(crew1.path(), LocationTrait::new(station));
+        let mut crew1_data = components::get::<Crew>(crew1.path()).unwrap();
+        crew1_data.roster = array![20000].span();
+        components::set::<Crew>(crew1.path(), crew1_data);
+
+        let crew2 = influence::test::mocks::delegated_crew(2, 'PLAYER');
+        components::set::<Location>(crew2.path(), LocationTrait::new(station));
+        let mut crew2_data = components::get::<Crew>(crew2.path()).unwrap();
+        crew2_data.roster = array![20001].span();
+        components::set::<Crew>(crew2.path(), crew2_data);
+
+        let mut state = ExchangeCrew::contract_state_for_testing();
+        ExchangeCrew::run(
+            ref state,
+            crew1,
+            array![].span(),
+            crew2,
+            array![20000, 20001].span(),
+            mocks::context('PLAYER')
+        );
     }
 
     #[test]

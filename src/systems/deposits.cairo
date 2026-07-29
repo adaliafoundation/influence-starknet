@@ -47,8 +47,8 @@ mod tests {
 
     use influence::{components, config};
     use influence::common::{inventory, random};
-    use influence::components::{Control, ControlTrait, Crew, CrewTrait, Inventory, InventoryTrait, Location,
-        LocationTrait, PrivateSale, PrivateSaleTrait,
+    use influence::components::{BuildingAllowance, Control, ControlTrait, Crew, CrewTrait, Inventory, InventoryTrait,
+        Location, LocationTrait, PrivateSale, PrivateSaleTrait, StarterPack,
         celestial::{statuses as celestial_statuses, Celestial, CelestialTrait},
         modifier_type::types as modifier_types,
         product_type::{types as product_types, ProductType},
@@ -181,6 +181,108 @@ mod tests {
         deposit_data = components::get::<Deposit>(EntityTrait::new(entities::DEPOSIT, 1).path()).unwrap();
         assert(deposit_data.status == deposit_statuses::SAMPLED, 'incorrect status');
         assert(deposit_data.initial_yield > intermediate_yield, 'incorrect yield');
+    }
+
+    #[test]
+    #[available_gas(40000000)]
+    fn test_starter_pack_core_sampling_consumes_allowance() {
+        helpers::init();
+        mocks::constants();
+
+        let asteroid = influence::test::mocks::adalia_prime();
+        let crew = influence::test::mocks::delegated_crew(1, 'PLAYER');
+
+        mocks::modifier_type(modifier_types::CORE_SAMPLE_TIME);
+        mocks::modifier_type(modifier_types::CORE_SAMPLE_QUALITY);
+        mocks::modifier_type(modifier_types::HOPPER_TRANSPORT_TIME);
+        mocks::modifier_type(modifier_types::FREE_TRANSPORT_DISTANCE);
+        mocks::product_type(product_types::CARBON_MONOXIDE);
+
+        let station = influence::test::mocks::public_habitat(crew, 1);
+        components::set::<Location>(station.path(), LocationTrait::new(EntityTrait::from_position(asteroid.id, 1758637)));
+        components::set::<Location>(crew.path(), LocationTrait::new(station));
+
+        let mut celestial_data = components::get::<Celestial>(asteroid.path()).unwrap();
+        celestial_data.scan_status = celestial_statuses::RESOURCE_SCANNED;
+        celestial_data.abundances = 163694267033613831154047584829516;
+        components::set::<Celestial>(asteroid.path(), celestial_data);
+
+        let allowances: Array<BuildingAllowance> = Default::default();
+        components::set::<StarterPack>(crew.path(), StarterPack {
+            product_id: 1,
+            restricted_until: 200,
+            valid: true,
+            invalidated_at: 0,
+            building_allowances: allowances.span(),
+            lot_allowance: 0,
+            food_reload_allowance: 0,
+            core_sample_allowance: 1
+        });
+
+        let mut start_state = SampleDepositStart::contract_state_for_testing();
+        SampleDepositStart::run(
+            ref start_state,
+            lot: EntityTrait::from_position(asteroid.id, 1758637),
+            resource: product_types::CARBON_MONOXIDE,
+            origin: EntityTrait::new(0, 0),
+            origin_slot: 0,
+            caller_crew: crew,
+            context: mocks::context('PLAYER')
+        );
+
+        let starter_pack = components::get::<StarterPack>(crew.path()).unwrap();
+        assert(starter_pack.core_sample_allowance == 0, 'core allowance not consumed');
+        let deposit_data = components::get::<Deposit>(EntityTrait::new(entities::DEPOSIT, 1).path()).unwrap();
+        assert(deposit_data.status == deposit_statuses::SAMPLING, 'incorrect status');
+    }
+
+    #[test]
+    #[available_gas(40000000)]
+    #[should_panic(expected: ('E6025: insufficient amount', ))]
+    fn test_starter_pack_core_sampling_requires_allowance() {
+        helpers::init();
+        mocks::constants();
+
+        let asteroid = influence::test::mocks::adalia_prime();
+        let crew = influence::test::mocks::delegated_crew(1, 'PLAYER');
+
+        mocks::modifier_type(modifier_types::CORE_SAMPLE_TIME);
+        mocks::modifier_type(modifier_types::CORE_SAMPLE_QUALITY);
+        mocks::modifier_type(modifier_types::HOPPER_TRANSPORT_TIME);
+        mocks::modifier_type(modifier_types::FREE_TRANSPORT_DISTANCE);
+        mocks::product_type(product_types::CARBON_MONOXIDE);
+
+        let station = influence::test::mocks::public_habitat(crew, 1);
+        components::set::<Location>(station.path(), LocationTrait::new(EntityTrait::from_position(asteroid.id, 1758637)));
+        components::set::<Location>(crew.path(), LocationTrait::new(station));
+
+        let mut celestial_data = components::get::<Celestial>(asteroid.path()).unwrap();
+        celestial_data.scan_status = celestial_statuses::RESOURCE_SCANNED;
+        celestial_data.abundances = 163694267033613831154047584829516;
+        components::set::<Celestial>(asteroid.path(), celestial_data);
+
+        let allowances: Array<BuildingAllowance> = Default::default();
+        components::set::<StarterPack>(crew.path(), StarterPack {
+            product_id: 1,
+            restricted_until: 200,
+            valid: true,
+            invalidated_at: 0,
+            building_allowances: allowances.span(),
+            lot_allowance: 0,
+            food_reload_allowance: 0,
+            core_sample_allowance: 0
+        });
+
+        let mut start_state = SampleDepositStart::contract_state_for_testing();
+        SampleDepositStart::run(
+            ref start_state,
+            lot: EntityTrait::from_position(asteroid.id, 1758637),
+            resource: product_types::CARBON_MONOXIDE,
+            origin: EntityTrait::new(0, 0),
+            origin_slot: 0,
+            caller_crew: crew,
+            context: mocks::context('PLAYER')
+        );
     }
 
     #[test]

@@ -7,7 +7,7 @@ mod InitializeArvadian {
     use traits::{Into, TryInto};
 
     use influence::{components, config, contracts};
-    use influence::common::{packed, nft, crew::{CrewDetailsTrait, time_since_fed}};
+    use influence::common::{packed, nft, starter_pack, crew::{CrewDetailsTrait, time_since_fed}};
     use influence::components::{Building, BuildingTrait, Control, ControlTrait, Crew, CrewTrait, Inventory,
         InventoryTrait, Location, LocationTrait, Name, NameTrait, Station, StationTrait,
         crewmate::{statuses as crewmate_statuses, classes, collections, crewmate_traits, Crewmate, CrewmateTrait},
@@ -216,6 +216,7 @@ mod InitializeArvadian {
         new_roster.append(crewmate.id);
         crew_data.roster = new_roster.span();
         components::set::<Crew>(caller_crew.path(), crew_data);
+        starter_pack::invalidate(caller_crew, context.now);
 
         self.emit(CrewmateRecruitedV1 {
             crewmate: crewmate,
