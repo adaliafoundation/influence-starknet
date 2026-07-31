@@ -1,6 +1,6 @@
 import ibis from '@influenceth/ibis';
 import { shortString, hash } from 'starknet';
-import { estimateDeclare, estimateInvoke, isDryRun, txOptions } from './dryRun.js';
+import { estimateDeclare, estimateInvoke, isDryRun, recordDryRunSystem, txOptions } from './dryRun.js';
 import { isAcceptedBaseline, updateAcceptedBaseline } from './baseline.js';
 
 const updateSystem = async (systemName, networkName, account, options = {}) => {
@@ -43,6 +43,8 @@ const updateSystem = async (systemName, networkName, account, options = {}) => {
 
   // If either the current class hash wasn't found or the new class hash is different, declare
   if (needsDeclare) {
+    recordDryRunSystem(options, systemName);
+
     if (isDryRun(options)) {
       await estimateDeclare({
         contracts,

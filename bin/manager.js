@@ -9,6 +9,7 @@ import ContractConfig from './lib/ContractConfig.js';
 import updateContract from './lib/updateContract.js';
 import updateDispatcher from './lib/updateDispatcher.js';
 import updateSystem from './lib/updateSystem.js';
+import { createDryRunSummary, printDryRunSummary } from './lib/dryRun.js';
 
 import combineAbis from './commands/combineAbis.js';
 import seedAsteroids from './commands/seedAsteroids.js';
@@ -83,7 +84,10 @@ const buildTxOptions = ({ maxFee, tip, dryRun, ignoreBaseline }) => {
   const options = {};
   if (maxFee != null) options.maxFee = BigInt(maxFee);
   if (tip != null) options.tip = BigInt(tip);
-  if (dryRun) options.dryRun = true;
+  if (dryRun) {
+    options.dryRun = true;
+    options.dryRunSummary = createDryRunSummary();
+  }
   if (ignoreBaseline) options.ignoreBaseline = true;
   return options;
 };
@@ -110,9 +114,10 @@ const updateByName = async (name, network, account, options) => {
 export const update = async ({ name, names, network, account, skipBuild, maxFee, tip, dryRun, ignoreBaseline }) => {
   if (!skipBuild) await buildHelper();
 
+  let options;
   try {
     const resolvedAccount = await getAccount(account, network);
-    const options = buildTxOptions({ maxFee, tip, dryRun, ignoreBaseline });
+    options = buildTxOptions({ maxFee, tip, dryRun, ignoreBaseline });
     const updateNames = normalizeNames({ name, names });
 
     for (const updateName of updateNames) {
@@ -120,15 +125,18 @@ export const update = async ({ name, names, network, account, skipBuild, maxFee,
     }
   } catch (error) {
     console.error(error);
+  } finally {
+    printDryRunSummary(options?.dryRunSummary);
   }
 };
 
 export const updateAll = async ({ network, account, skipBuild, maxFee, tip, dryRun, ignoreBaseline }) => {
   if (!skipBuild) await buildHelper();
 
+  let options;
   try {
     const resolvedAccount = await getAccount(account, network);
-    const options = buildTxOptions({ maxFee, tip, dryRun, ignoreBaseline });
+    options = buildTxOptions({ maxFee, tip, dryRun, ignoreBaseline });
     await updateDispatcher(network, resolvedAccount, options);
     const config = new ContractConfig(network);
     const contracts = config.getContracts();
@@ -143,6 +151,8 @@ export const updateAll = async ({ network, account, skipBuild, maxFee, tip, dryR
     }
   } catch (error) {
     console.error(error);
+  } finally {
+    printDryRunSummary(options?.dryRunSummary);
   }
 };
 
