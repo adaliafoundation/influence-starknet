@@ -360,13 +360,13 @@
     }
   },
   "influence.RecruitAdalian.cnkpscka882km": {
-    "declaredAt": 1785480933269,
-    "declareTxHash": "0x52bd9e668968676305f059edc2181603b34ca7b80f88321b275322490340cdd",
-    "classHash": "0x31c0f09260fdc9c1530a37fd831acf1d13fd6a77987c71cf6e5c116e0a42c1a",
+    "declaredAt": 1788430094806,
+    "declareTxHash": "0x12bfab119ad376918978c39c12853a93142d40f48dd6840b5d71f2837dd7c17",
+    "classHash": "0x2f42b088a4cc884fe8ca2376d2070466cf453fa8c1f2eb0b22b47356a03e23d",
     "baseline": {
-      "acceptedClassHash": "0x31c0f09260fdc9c1530a37fd831acf1d13fd6a77987c71cf6e5c116e0a42c1a",
-      "classHash": "0x31c0f09260fdc9c1530a37fd831acf1d13fd6a77987c71cf6e5c116e0a42c1a",
-      "updatedAt": "2026-07-31T06:56:03.018Z",
+      "acceptedClassHash": "0x2f42b088a4cc884fe8ca2376d2070466cf453fa8c1f2eb0b22b47356a03e23d",
+      "classHash": "0x2f42b088a4cc884fe8ca2376d2070466cf453fa8c1f2eb0b22b47356a03e23d",
+      "updatedAt": "2026-09-03T10:08:44.570Z",
       "reason": "updated on-chain class hash"
     }
   },
@@ -1250,13 +1250,24 @@
     }
   },
   "influence.GrantOffchainStarterPack.n8n8s8vhpo6nm": {
-    "declaredAt": 1785481281242,
-    "declareTxHash": "0x33bd87155f08e8a3b0a66fd55cfa9e47c5b725e27064b810f722e88a086ef9c",
-    "classHash": "0x718bf6143a04fd26fbbf4ce339b0968bb1ca72ee10efc443649ada7a7959bd6",
+    "declaredAt": 1788430205075,
+    "declareTxHash": "0x1c986b76287c50f9eacd4cb32f5a97ef6deb2f6c12cfbc400f1e9d4a06cee34",
+    "classHash": "0x6a6f7f1a572574ce3484a7533582d77d7a2672613c7e10603cc1ae06fe588f0",
     "baseline": {
-      "acceptedClassHash": "0x718bf6143a04fd26fbbf4ce339b0968bb1ca72ee10efc443649ada7a7959bd6",
-      "classHash": "0x718bf6143a04fd26fbbf4ce339b0968bb1ca72ee10efc443649ada7a7959bd6",
-      "updatedAt": "2026-07-31T07:01:50.565Z",
+      "acceptedClassHash": "0x6a6f7f1a572574ce3484a7533582d77d7a2672613c7e10603cc1ae06fe588f0",
+      "classHash": "0x6a6f7f1a572574ce3484a7533582d77d7a2672613c7e10603cc1ae06fe588f0",
+      "updatedAt": "2026-09-03T10:10:36.042Z",
+      "reason": "updated on-chain class hash"
+    }
+  },
+  "influence.GrantOffchainCrewmate.budre00m5oq1a": {
+    "declaredAt": 1788430167594,
+    "declareTxHash": "0x79f86cde1002d1aabe14278a5df7137859b100efb3b5b5dbec33484dd475c97",
+    "classHash": "0x29ed54bfb8741f910508bedba1ef69a2d62d7a09ce85bca077c6bbea62e0046",
+    "baseline": {
+      "acceptedClassHash": "0x29ed54bfb8741f910508bedba1ef69a2d62d7a09ce85bca077c6bbea62e0046",
+      "classHash": "0x29ed54bfb8741f910508bedba1ef69a2d62d7a09ce85bca077c6bbea62e0046",
+      "updatedAt": "2026-09-03T10:10:00.942Z",
       "reason": "updated on-chain class hash"
     }
   }
