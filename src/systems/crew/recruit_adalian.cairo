@@ -13,7 +13,7 @@ mod RecruitAdalian {
     use influence::config::{entities, errors, permissions};
     use influence::components::{Building, BuildingTrait, Control, ControlTrait, Crew, CrewTrait, Inventory,
         InventoryTrait, Location, LocationTrait, Name, NameTrait, Station, StationTrait,
-        crewmate::{collections, statuses, Crewmate, CrewmateTrait},
+        crewmate::Crewmate,
         inventory_type::types as inventory_types,
         ship::{statuses as ship_statuses, Ship, ShipTrait},
         ship_type::types as ship_types,
@@ -141,23 +141,10 @@ mod RecruitAdalian {
 
         // Retrieve or purchase crewmate (will revert if purchase price not approved first)
         let mut crewmate_data = nft::find_or_purchase_crewmate(ref crewmate, context.caller);
-        assert(crewmate_data.status == statuses::UNINITIALIZED, errors::ALREADY_INITIALIZED);
-        crewmate_data.status = statuses::INITIALIZED;
-
-        crewmate_common::validate_adalian(
+        crewmate_common::provision_adalian(
+            ref crewmate_data,
             class, impactful, cosmetic, gender, body, face, hair, hair_color, clothes, name
         );
-
-        // Validate collection and class
-        assert(crewmate_data.collection == collections::ADALIAN, 'invalid collection');
-        crewmate_data.class = class;
-
-        crewmate_data.cosmetic = cosmetic;
-
-        crewmate_data.impactful = impactful;
-
-        // Pack appearance and set crewmate
-        crewmate_data.appearance = CrewmateTrait::pack_appearance(gender, body, face, hair, hair_color, clothes, 0, 0);
         components::set::<Crewmate>(crewmate.path(), crewmate_data);
 
         // Update station population and store (ignores station caps)

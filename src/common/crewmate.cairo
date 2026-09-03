@@ -1,6 +1,6 @@
 use array::SpanTrait;
 
-use influence::components::crewmate::{classes, crewmate_traits};
+use influence::components::crewmate::{classes, collections, crewmate_traits, statuses, Crewmate, CrewmateTrait};
 use influence::config::errors;
 
 fn validate_adalian(
@@ -35,6 +35,32 @@ fn validate_adalian(
         let hair_end = gender * 6;
         assert((hair >= hair_end - 6) && (hair < hair_end * 6), 'invalid hair');
     }
+}
+
+fn provision_adalian(
+    ref crewmate: Crewmate,
+    class: u64,
+    impactful: Span<u64>,
+    cosmetic: Span<u64>,
+    gender: u64,
+    body: u64,
+    face: u64,
+    hair: u64,
+    hair_color: u64,
+    clothes: u64,
+    name: felt252
+) {
+    assert(crewmate.status == statuses::UNINITIALIZED, errors::ALREADY_INITIALIZED);
+    assert(crewmate.collection == collections::ADALIAN, 'invalid collection');
+    validate_adalian(class, impactful, cosmetic, gender, body, face, hair, hair_color, clothes, name);
+
+    crewmate.status = statuses::INITIALIZED;
+    crewmate.class = class;
+    crewmate.impactful = impactful;
+    crewmate.cosmetic = cosmetic;
+    crewmate.appearance = CrewmateTrait::pack_appearance(
+        gender, body, face, hair, hair_color, clothes, 0, 0
+    );
 }
 
 fn assert_drive(t: u64) {

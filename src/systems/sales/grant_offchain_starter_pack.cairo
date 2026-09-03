@@ -12,7 +12,7 @@ mod GrantOffchainStarterPack {
     use influence::components::{Building, BuildingAllowance, BuildingTrait, Control, ControlTrait, Crew, CrewTrait,
         Location, LocationTrait, Name, NameTrait, StarterPack, Station, StationTrait,
         building_type::types as building_types,
-        crewmate::{collections, statuses, Crewmate, CrewmateTrait},
+        crewmate::{collections, Crewmate, CrewmateTrait},
         starter_pack_products};
     use influence::config::{entities, errors, permissions, roles};
     use influence::contracts::crewmate::{ICrewmateDispatcher, ICrewmateDispatcherTrait};
@@ -21,6 +21,7 @@ mod GrantOffchainStarterPack {
 
     #[storage]
     struct Storage {
+        // Shared by offchain grant systems so an external payment reference can only be used once.
         external_refs: Map::<felt252, bool>
     }
 
@@ -110,7 +111,9 @@ mod GrantOffchainStarterPack {
             ];
             let crewmate_impactful = array![*impactful.at(iter)];
 
-            crewmate_common::validate_adalian(
+            let mut crewmate_data = CrewmateTrait::new(collections::ADALIAN);
+            crewmate_common::provision_adalian(
+                ref crewmate_data,
                 class,
                 crewmate_impactful.span(),
                 crewmate_cosmetic.span(),
@@ -128,22 +131,6 @@ mod GrantOffchainStarterPack {
                 contract_address, recipient, crewmate_id, restricted_until, context.caller
             );
             let crewmate = EntityTrait::new(entities::CREWMATE, crewmate_id.try_into().unwrap());
-            let mut crewmate_data = CrewmateTrait::new(collections::ADALIAN);
-            crewmate_data.status = statuses::INITIALIZED;
-            crewmate_data.class = class;
-            crewmate_data.impactful = crewmate_impactful.span();
-            crewmate_data.cosmetic = crewmate_cosmetic.span();
-            crewmate_data.appearance = CrewmateTrait::pack_appearance(
-                *genders.at(iter),
-                *bodies.at(iter),
-                *faces.at(iter),
-                *hairs.at(iter),
-                *hair_colors.at(iter),
-                *clothes.at(iter),
-                0,
-                0
-            );
-
             components::set::<Crewmate>(crewmate.path(), crewmate_data);
             components::set::<Control>(crewmate.path(), ControlTrait::new(crew));
             change_name(crewmate, StringTrait::new(*names.at(iter)));
