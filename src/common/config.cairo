@@ -45,6 +45,7 @@ mod noise;
 mod permissions;
 mod random_events;
 mod resource_bonuses;
+mod roles;
 
 fn get(name: felt252) -> felt252 {
     let selector = 0x37802032f0a60a9a88d14be2a2adc9b5c19da641ac29831487d2daa90bb75a0; // constants

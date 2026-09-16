@@ -127,6 +127,8 @@ const testnetConfig = {
 
   // Sales
   GrantAdalians: { isSystem: true },
+  GrantOffchainCrewmate: { isSystem: true },
+  GrantOffchainStarterPack: { isSystem: true },
   GrantStarterPack: { isSystem: true },
   PurchaseAdalian: { isSystem: true },
   PurchaseAsteroid: { isSystem: true },
@@ -286,6 +288,8 @@ export default {
 
     // Sales
     GrantAdalians: { isSystem: true },
+    GrantOffchainCrewmate: { isSystem: true },
+    GrantOffchainStarterPack: { isSystem: true },
     GrantStarterPack: { isSystem: true },
     PurchaseAdalian: { isSystem: true },
     PurchaseAsteroid: { isSystem: true },
@@ -298,11 +302,11 @@ export default {
 
     // Seeding
     InitializeAsteroid: { isSystem: true },
-    SeedAsteroids: { isSystem: true },
-    SeedCrewmates: { isSystem: true },
-    SeedColony: { isSystem: true },
-    SeedHabitat: { isSystem: true },
-    SeedOrders: { isSystem: true },
+    SeedAsteroids: { isSystem: true, skipUpdateAll: true },
+    SeedCrewmates: { isSystem: true, skipUpdateAll: true },
+    SeedColony: { isSystem: true, skipUpdateAll: true },
+    SeedHabitat: { isSystem: true, skipUpdateAll: true },
+    SeedOrders: { isSystem: true, skipUpdateAll: true },
 
     // Ship
     DockShip: { isSystem: true },

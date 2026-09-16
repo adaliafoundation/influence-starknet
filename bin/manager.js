@@ -2,6 +2,7 @@ import { exec } from 'node:child_process';
 import util from 'node:util';
 import ibis from '@influenceth/ibis';
 import Account from '@influenceth/ibis/src/lib/Account.js';
+import { logger } from 'starknet';
 import yargs from 'yargs'
 import { hideBin } from 'yargs/helpers'
 
@@ -9,6 +10,7 @@ import ContractConfig from './lib/ContractConfig.js';
 import updateContract from './lib/updateContract.js';
 import updateDispatcher from './lib/updateDispatcher.js';
 import updateSystem from './lib/updateSystem.js';
+import { createDryRunSummary, printDryRunSummary } from './lib/dryRun.js';
 
 import combineAbis from './commands/combineAbis.js';
 import seedAsteroids from './commands/seedAsteroids.js';
@@ -17,6 +19,8 @@ import seedOrders from './commands/seedOrders.js';
 import updateConfigs from './commands/updateConfigs.js';
 import updateConstant from './commands/updateConstant.js';
 import cancelOrders from './commands/cancelOrders.js';
+
+logger.setLogLevel('WARN');
 
 const buildHelper = async () => {
   const execPromise = util.promisify(exec);
@@ -32,8 +36,15 @@ const buildHelper = async () => {
 
 const DEFAULT_TX_RETRY_INTERVAL_MS = 500;
 const DEFAULT_TX_LIFECYCLE_RETRIES = 20;
+const DEFAULT_TIP_MAX_BLOCKS = 20;
 
-const applyFastWaitDefaults = (account) => {
+const applyAccountDefaults = (account) => {
+  const originalGetEstimateTip = account.getEstimateTip.bind(account);
+  account.getEstimateTip = (blockIdentifier, options = {}) => originalGetEstimateTip(blockIdentifier, {
+    maxBlocks: DEFAULT_TIP_MAX_BLOCKS,
+    ...options
+  });
+
   const originalWaitForTransaction = account.waitForTransaction.bind(account);
   account.waitForTransaction = (txHash, options = {}) => {
     return originalWaitForTransaction(txHash, {
@@ -76,14 +87,17 @@ const getAccount = async (accountName, networkName) => {
     if (!account) throw new Error(`Account ${accountName} not found`);
   }
 
-  return applyFastWaitDefaults(account);
+  return applyAccountDefaults(account);
 }
 
 const buildTxOptions = ({ maxFee, tip, dryRun, ignoreBaseline }) => {
   const options = {};
   if (maxFee != null) options.maxFee = BigInt(maxFee);
   if (tip != null) options.tip = BigInt(tip);
-  if (dryRun) options.dryRun = true;
+  if (dryRun) {
+    options.dryRun = true;
+    options.dryRunSummary = createDryRunSummary();
+  }
   if (ignoreBaseline) options.ignoreBaseline = true;
   return options;
 };
@@ -110,9 +124,10 @@ const updateByName = async (name, network, account, options) => {
 export const update = async ({ name, names, network, account, skipBuild, maxFee, tip, dryRun, ignoreBaseline }) => {
   if (!skipBuild) await buildHelper();
 
+  let options;
   try {
     const resolvedAccount = await getAccount(account, network);
-    const options = buildTxOptions({ maxFee, tip, dryRun, ignoreBaseline });
+    options = buildTxOptions({ maxFee, tip, dryRun, ignoreBaseline });
     const updateNames = normalizeNames({ name, names });
 
     for (const updateName of updateNames) {
@@ -120,15 +135,19 @@ export const update = async ({ name, names, network, account, skipBuild, maxFee,
     }
   } catch (error) {
     console.error(error);
+    process.exitCode = 1;
+  } finally {
+    printDryRunSummary(options?.dryRunSummary);
   }
 };
 
 export const updateAll = async ({ network, account, skipBuild, maxFee, tip, dryRun, ignoreBaseline }) => {
   if (!skipBuild) await buildHelper();
 
+  let options;
   try {
     const resolvedAccount = await getAccount(account, network);
-    const options = buildTxOptions({ maxFee, tip, dryRun, ignoreBaseline });
+    options = buildTxOptions({ maxFee, tip, dryRun, ignoreBaseline });
     await updateDispatcher(network, resolvedAccount, options);
     const config = new ContractConfig(network);
     const contracts = config.getContracts();
@@ -139,10 +158,17 @@ export const updateAll = async ({ network, account, skipBuild, maxFee, tip, dryR
     }
 
     for (const name of systems) {
+      if (config.config[name].skipUpdateAll) {
+        console.log(`System ${name} excluded from updateAll; use update --name ${name} to update explicitly`);
+        continue;
+      }
       await updateSystem(name, network, resolvedAccount, options);
     }
   } catch (error) {
     console.error(error);
+    process.exitCode = 1;
+  } finally {
+    printDryRunSummary(options?.dryRunSummary);
   }
 };
 

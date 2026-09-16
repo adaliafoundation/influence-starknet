@@ -10,7 +10,7 @@ mod AcceptPrepaidAgreement {
     use cubit::f128::{FixedTrait as FixedTrait128};
 
     use influence::{components, config, contracts};
-    use influence::common::{crew::CrewDetailsTrait, math::RoundedDivTrait, position};
+    use influence::common::{crew::CrewDetailsTrait, math::RoundedDivTrait, position, starter_pack};
     use influence::components::{Building, Celestial, Crew, CrewTrait, Control, ControlTrait, PrepaidPolicy,
         PrepaidPolicyTrait, PrepaidAgreement, PrepaidAgreementTrait, PrepaidAgreementAuction,
         PrepaidAgreementAuctionTrait, Unique};
@@ -22,6 +22,8 @@ mod AcceptPrepaidAgreement {
     };
     use influence::systems::policies::helpers::policy_path;
     use influence::types::{ArrayHashTrait, Context, Entity, EntityTrait};
+
+    const STARTER_LOT_TERM: u64 = 2628000;
 
     #[storage]
     struct Storage {}
@@ -60,6 +62,7 @@ mod AcceptPrepaidAgreement {
         crew_details.assert_launched(context.now);
         crew_details.assert_delegated_to(context.caller);
         crew_details.assert_manned();
+        starter_pack::assert_target_unrestricted(target, context.now);
 
         // Check for current policy
         let mut controller_crew = EntityTrait::new(entities::CREW, 0);
@@ -67,6 +70,8 @@ mod AcceptPrepaidAgreement {
         let mut asteroid = EntityTrait::new(entities::ASTEROID, target_ast);
         let empty_policy_path: Array<felt252> = Default::default();
         let mut policy_path: Span<felt252> = empty_policy_path.span();
+        let mut requires_auction = false;
+        let mut starter_lot_lease = false;
 
         if target.label == entities::LOT {
             assert(permission == permissions::USE_LOT, 'invalid permission');
@@ -76,12 +81,14 @@ mod AcceptPrepaidAgreement {
             controller_crew = components::get::<Control>(asteroid.path()).expect(errors::CONTROL_NOT_FOUND).controller;
 
             // Check that the lot is not already used by the asteroid controller
+            let mut lot_in_use = false;
             let mut has_building = false;
             let mut building = EntityTrait::new(entities::BUILDING, 0);
             let mut building_controller = EntityTrait::new(entities::CREW, 0);
 
             match components::get::<Unique>(lot_use_path(target)) {
                 Option::Some(unique_data) => {
+                    lot_in_use = true;
                     let lot_use: Entity = unique_data.unique.try_into().unwrap();
                     has_building = lot_use.label == entities::BUILDING;
                     if has_building {
@@ -104,7 +111,6 @@ mod AcceptPrepaidAgreement {
 
             // Ensure use lot agreements are unique / you can't lease over the top of someone else's lease
             let mut unique: Entity = EntityTrait::new(entities::CREW, 0);
-            let mut requires_auction = false;
             let mut current_data = PrepaidAgreementTrait::new(0, 0, 0, 0, 0);
 
             // Allow creating a new agreement if caller crew is current tenant OR as long as the current unique
@@ -126,6 +132,12 @@ mod AcceptPrepaidAgreement {
                 },
                 Option::None(_) => ()
             };
+
+            starter_lot_lease = is_starter_lot_lease(target, permission, permitted, caller_crew, term, asteroid);
+            if starter_lot_lease {
+                assert(!lot_in_use, 'starter lot in use');
+                assert(!requires_auction, 'starter lease unavailable');
+            }
 
             if requires_auction {
                 let settings = auction_settings(asteroid);
@@ -225,16 +237,20 @@ mod AcceptPrepaidAgreement {
             rate = adalia_prime_lease_price(target, policy_data.rate);
         }
 
-        let amount = (term * rate).div_ceil(3600);
+        if starter_lot_lease {
+            starter_pack::consume_lot_allowance(caller_crew);
+        } else {
+            let amount = (term * rate).div_ceil(3600);
 
-        // Confirm receipt on SWAY contract for payment to controller
-        let mut memo: Array<felt252> = Default::default();
-        memo.append(target.into());
-        memo.append(permission.into());
-        memo.append(permitted.into());
-        ISwayDispatcher { contract_address: contracts::get('Sway') }.confirm_receipt(
-            context.caller, controller_address, amount.into(), memo.hash()
-        );
+            // Confirm receipt on SWAY contract for payment to controller
+            let mut memo: Array<felt252> = Default::default();
+            memo.append(target.into());
+            memo.append(permission.into());
+            memo.append(permitted.into());
+            ISwayDispatcher { contract_address: contracts::get('Sway') }.confirm_receipt(
+                context.caller, controller_address, amount.into(), memo.hash()
+            );
+        }
 
         // Create agreement
         let mut agreement_data = PrepaidAgreement {
@@ -246,7 +262,11 @@ mod AcceptPrepaidAgreement {
             notice_time: 0
         };
 
-        components::set::<PrepaidAgreement>(agreement_path(target, permission, permitted.into()), agreement_data);
+        let prepaid_path = agreement_path(target, permission, permitted.into());
+        components::set::<PrepaidAgreement>(prepaid_path, agreement_data);
+        if starter_lot_lease {
+            starter_pack::mark_lot_lease(prepaid_path, caller_crew);
+        }
 
         self.emit(PrepaidAgreementAccepted {
             target: target,
@@ -259,6 +279,18 @@ mod AcceptPrepaidAgreement {
             caller_crew: caller_crew,
             caller: context.caller
         });
+    }
+
+    fn is_starter_lot_lease(
+        target: Entity, permission: u64, permitted: Entity, caller_crew: Entity, term: u64, asteroid: Entity
+    ) -> bool {
+        if target.label != entities::LOT { return false; }
+        if permission != permissions::USE_LOT { return false; }
+        if permitted != caller_crew { return false; }
+        if asteroid.id != 1 { return false; }
+        if starter_pack::lot_allowance(caller_crew) == 0 { return false; }
+        assert(term <= STARTER_LOT_TERM, errors::AGREEMENT_TOO_LONG);
+        return true;
     }
 
     fn adalia_prime_lease_price(lot: Entity, rate: u64) -> u64 {
@@ -337,9 +369,10 @@ mod tests {
     use starknet::{ClassHash, testing};
 
     use influence::components;
-    use influence::components::{Control, ControlTrait, Crew, CrewTrait, Location, LocationTrait, PrepaidAgreement,
-        PrepaidAgreementTrait, PrepaidAgreementAuctionSettings, PrepaidAgreementAuctionSettingsTrait, PrepaidPolicy,
-        PrepaidPolicyTrait, Unique};
+    use influence::components::{BuildingAllowance, Control, ControlTrait, Crew, CrewTrait, Location, LocationTrait,
+        PrepaidAgreement, PrepaidAgreementTrait, PrepaidAgreementAuctionSettings,
+        PrepaidAgreementAuctionSettingsTrait, PrepaidPolicy, PrepaidPolicyTrait, StarterPack, StarterPackLotLease,
+        Unique};
     use influence::components::agreements::prepaid_auction::modes as auction_modes;
     use influence::config::{entities, permissions};
     use influence::contracts::sway::{Sway, ISwayDispatcher, ISwayDispatcherTrait};
@@ -418,6 +451,135 @@ mod tests {
         assert(agreement_data.notice_period == 2628000, 'invalid notice period');
         assert(agreement_data.start_time == 0, 'invalid start time');
         assert(agreement_data.end_time == 2628000, 'invalid end time');
+    }
+
+    #[test]
+    #[available_gas(20000000)]
+    fn test_accept_prepaid_uses_starter_lot_allowance_on_adalia_prime() {
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
+        helpers::init();
+        mocks::constants();
+        let asteroid = mocks::adalia_prime();
+        let lot = EntityTrait::from_position(asteroid.id, 1595353);
+
+        let controller_crew = influence::test::mocks::delegated_crew(1, 'CONTROLLER');
+        components::set::<Control>(asteroid.path(), ControlTrait::new(controller_crew));
+
+        components::set::<PrepaidPolicy>(policy_path(asteroid, permissions::USE_LOT), PrepaidPolicy {
+            rate: 986301369,
+            initial_term: 2628000,
+            notice_period: 2628000
+        });
+
+        let caller_crew = influence::test::mocks::delegated_crew(2, 'PLAYER');
+        components::set::<Location>(caller_crew.path(), LocationTrait::new(asteroid));
+        let allowances: Array<BuildingAllowance> = Default::default();
+        components::set::<StarterPack>(caller_crew.path(), StarterPack {
+            product_id: 1,
+            restricted_until: 200,
+            valid: true,
+            invalidated_at: 0,
+            building_allowances: allowances.span(),
+            lot_allowance: 2,
+            food_reload_allowance: 0,
+            core_sample_allowance: 0
+        });
+
+        let class_hash: ClassHash = AcceptPrepaidAgreement::TEST_CLASS_HASH.try_into().unwrap();
+        IAcceptPrepaidAgreementLibraryDispatcher { class_hash: class_hash }.run(
+            lot, permissions::USE_LOT, caller_crew, 2628000, caller_crew, mocks::context('PLAYER')
+        );
+
+        let prepaid_path = agreement_path(lot, permissions::USE_LOT, caller_crew.into());
+        let agreement = components::get::<PrepaidAgreement>(prepaid_path).unwrap();
+        assert(agreement.rate == 986301369, 'invalid rate');
+        assert(agreement.end_time == 2628000, 'invalid end time');
+        assert(components::get::<StarterPackLotLease>(prepaid_path).is_some(), 'marker missing');
+
+        let starter_pack = components::get::<StarterPack>(caller_crew.path()).unwrap();
+        assert(starter_pack.lot_allowance == 1, 'lot allowance not consumed');
+
+        let unique: Entity = components::get::<Unique>(use_lot_path(lot)).unwrap().unique.try_into().unwrap();
+        assert(unique == caller_crew, 'wrong use lot');
+    }
+
+    #[test]
+    #[should_panic(expected: ('E6021: agreement too long', 'ENTRYPOINT_FAILED'))]
+    #[available_gas(20000000)]
+    fn test_accept_prepaid_starter_lot_allowance_rejects_long_term() {
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
+        helpers::init();
+        mocks::constants();
+        let asteroid = mocks::adalia_prime();
+        let lot = EntityTrait::from_position(asteroid.id, 1595353);
+
+        let controller_crew = influence::test::mocks::delegated_crew(1, 'CONTROLLER');
+        components::set::<Control>(asteroid.path(), ControlTrait::new(controller_crew));
+        components::set::<PrepaidPolicy>(policy_path(asteroid, permissions::USE_LOT), PrepaidPolicy {
+            rate: 986301369,
+            initial_term: 2628000,
+            notice_period: 2628000
+        });
+
+        let caller_crew = influence::test::mocks::delegated_crew(2, 'PLAYER');
+        components::set::<Location>(caller_crew.path(), LocationTrait::new(asteroid));
+        let allowances: Array<BuildingAllowance> = Default::default();
+        components::set::<StarterPack>(caller_crew.path(), StarterPack {
+            product_id: 1,
+            restricted_until: 200,
+            valid: true,
+            invalidated_at: 0,
+            building_allowances: allowances.span(),
+            lot_allowance: 2,
+            food_reload_allowance: 0,
+            core_sample_allowance: 0
+        });
+
+        let class_hash: ClassHash = AcceptPrepaidAgreement::TEST_CLASS_HASH.try_into().unwrap();
+        IAcceptPrepaidAgreementLibraryDispatcher { class_hash: class_hash }.run(
+            lot, permissions::USE_LOT, caller_crew, 2628001, caller_crew, mocks::context('PLAYER')
+        );
+    }
+
+    #[test]
+    #[should_panic(expected: ('starter lot in use', 'ENTRYPOINT_FAILED'))]
+    #[available_gas(20000000)]
+    fn test_accept_prepaid_starter_lot_allowance_rejects_used_lot() {
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
+        helpers::init();
+        mocks::constants();
+        let asteroid = mocks::adalia_prime();
+        let lot = EntityTrait::from_position(asteroid.id, 1595353);
+
+        let controller_crew = influence::test::mocks::delegated_crew(1, 'CONTROLLER');
+        components::set::<Control>(asteroid.path(), ControlTrait::new(controller_crew));
+        components::set::<PrepaidPolicy>(policy_path(asteroid, permissions::USE_LOT), PrepaidPolicy {
+            rate: 986301369,
+            initial_term: 2628000,
+            notice_period: 2628000
+        });
+
+        let caller_crew = influence::test::mocks::delegated_crew(2, 'PLAYER');
+        components::set::<Location>(caller_crew.path(), LocationTrait::new(asteroid));
+        let allowances: Array<BuildingAllowance> = Default::default();
+        components::set::<StarterPack>(caller_crew.path(), StarterPack {
+            product_id: 1,
+            restricted_until: 200,
+            valid: true,
+            invalidated_at: 0,
+            building_allowances: allowances.span(),
+            lot_allowance: 2,
+            food_reload_allowance: 0,
+            core_sample_allowance: 0
+        });
+
+        let ship = EntityTrait::new(entities::SHIP, 7);
+        components::set::<Unique>(lot_use_path(lot), Unique { unique: ship.into() });
+
+        let class_hash: ClassHash = AcceptPrepaidAgreement::TEST_CLASS_HASH.try_into().unwrap();
+        IAcceptPrepaidAgreementLibraryDispatcher { class_hash: class_hash }.run(
+            lot, permissions::USE_LOT, caller_crew, 2628000, caller_crew, mocks::context('PLAYER')
+        );
     }
 
     #[test]

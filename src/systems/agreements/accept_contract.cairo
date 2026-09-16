@@ -6,7 +6,7 @@ mod AcceptContractAgreement {
     use traits::{Into, TryInto};
 
     use influence::{components, contracts};
-    use influence::common::crew::CrewDetailsTrait;
+    use influence::common::{crew::CrewDetailsTrait, starter_pack};
     use influence::components::{Control, ControlTrait, ContractPolicy, ContractPolicyTrait,
         ContractAgreement, ContractAgreementTrait, Unique};
     use influence::config::{entities, errors, permissions};
@@ -46,6 +46,7 @@ mod AcceptContractAgreement {
         // Check that crew is delegated, and ready
         let mut crew_details = CrewDetailsTrait::new(caller_crew);
         crew_details.assert_delegated_to(context.caller);
+        starter_pack::assert_target_unrestricted(target, context.now);
 
         // Check for current policy
         let mut controller_crew = EntityTrait::new(entities::CREW, 0);

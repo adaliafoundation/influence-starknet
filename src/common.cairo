@@ -1,6 +1,7 @@
 mod access;
 mod astro;
 mod config;
+mod crewmate;
 mod crew;
 mod inventory;
 mod math;
@@ -9,4 +10,5 @@ mod packed;
 mod position;
 mod propulsion;
 mod random;
+mod starter_pack;
 mod types;

@@ -1,7 +1,7 @@
 // Helpers do NO validation and should only be used in systems after validations are complete
 use array::{ArrayTrait, SpanTrait};
 use option::OptionTrait;
-use starknet::ContractAddress;
+use starknet::{ContractAddress, get_contract_address};
 use traits::{Into, TryInto};
 
 use influence::{components, contracts};
@@ -44,6 +44,42 @@ fn create_crew(station: Entity, caller: ContractAddress) -> (Entity, Crew) {
     });
 
     // Create propellant inventory, lock and attach
+    let mut path: Array<felt252> = Default::default();
+    path.append(crew.into());
+    path.append(ShipTypeTrait::by_type(ship_types::ESCAPE_MODULE).propellant_slot.into());
+    let mut inventory_data = InventoryTrait::new(inventory_types::PROPELLANT_TINY);
+    inventory_data.disable();
+    components::set::<Inventory>(path.span(), inventory_data);
+
+    return (crew, crew_data);
+}
+
+fn create_restricted_crew(
+    station: Entity, caller: ContractAddress, transfer_restriction_until: u64, restriction_authority: ContractAddress
+) -> (Entity, Crew) {
+    let contract_address = get_contract_address();
+    let crew_contract = ICrewDispatcher { contract_address: contracts::get('Crew') };
+    let id = crew_contract.mint_with_auto_id(contract_address);
+    crew_contract.transfer_with_restriction(
+        contract_address, caller, id, transfer_restriction_until, restriction_authority
+    );
+    let crew = EntityTrait::new(entities::CREW, id.try_into().unwrap());
+    let crew_data = CrewTrait::new(caller);
+    components::set::<Crew>(crew.path(), crew_data);
+
+    components::set::<Location>(crew.path(), LocationTrait::new(station));
+    components::set::<Ship>(crew.path(), Ship {
+        ship_type: ship_types::ESCAPE_MODULE,
+        status: ship_statuses::DISABLED,
+        ready_at: 0,
+        emergency_at: 0,
+        variant: 1,
+        transit_origin: EntityTrait::new(0, 0),
+        transit_departure: 0,
+        transit_destination: EntityTrait::new(0, 0),
+        transit_arrival: 0
+    });
+
     let mut path: Array<felt252> = Default::default();
     path.append(crew.into());
     path.append(ShipTypeTrait::by_type(ship_types::ESCAPE_MODULE).propellant_slot.into());

@@ -2,7 +2,7 @@ import ibis from '@influenceth/ibis';
 import { hash } from 'starknet';
 
 import { declareIfNeeded, loadOrDeployContract } from './utils.js';
-import { estimateInvoke, isDryRun, txOptions } from './dryRun.js';
+import { estimateInvoke, isDryRun, recordUnestimatedDryRunFee, txOptions } from './dryRun.js';
 import { isAcceptedBaseline, updateAcceptedBaseline } from './baseline.js';
 
 const updateDispatcher = async (networkName, account, options = {}) => {
@@ -39,7 +39,9 @@ const updateDispatcher = async (networkName, account, options = {}) => {
     const call = dispatcher.populate('upgrade', [ computedHash ]);
     if (isDryRun(options)) {
       if (!declareResult?.alreadyDeclared) {
-        console.log(`[dry-run] ${contractName} upgrade: not estimated because class ${computedHash} is not declared yet`);
+        const reason = `class ${computedHash} is not declared yet`;
+        recordUnestimatedDryRunFee(options, `${contractName} upgrade`, reason);
+        console.log(`[dry-run] ${contractName} upgrade: not estimated because ${reason}`);
         console.log(`[dry-run] Contract ${contractName} would upgrade to hash: ${computedHash}`);
         return;
       }

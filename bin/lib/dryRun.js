@@ -5,7 +5,7 @@ export const isDryRun = (options = {}) => {
 };
 
 export const txOptions = (options = {}) => {
-  const { dryRun, estimate, ignoreBaseline, force, ...rest } = options;
+  const { dryRun, estimate, ignoreBaseline, force, dryRunSummary, ...rest } = options;
   return rest;
 };
 
@@ -21,6 +21,40 @@ const feeAmount = (fee = {}) => {
     || 0;
 };
 
+export const createDryRunSummary = () => ({
+  systems: new Set(),
+  estimates: [],
+  unestimated: []
+});
+
+export const recordDryRunSystem = (options = {}, systemName) => {
+  if (!options.dryRunSummary || !systemName) return;
+  options.dryRunSummary.systems.add(systemName);
+};
+
+export const recordUnestimatedDryRunFee = (options = {}, label, reason) => {
+  if (!options.dryRunSummary) return;
+  options.dryRunSummary.unestimated.push({ label, reason });
+};
+
+export const printDryRunSummary = (summary) => {
+  if (!summary) return;
+
+  const totalFri = summary.estimates.reduce((sum, estimate) => sum + BigInt(estimate.amount), 0n);
+  console.log('');
+  console.log('[dry-run] Summary');
+  console.log(`[dry-run] Systems with pending updates: ${summary.systems.size}`);
+  console.log(`[dry-run] Estimated transactions: ${summary.estimates.length}`);
+  console.log(`[dry-run] Estimated total fee: ${formatFriAsStrk(totalFri)} (${totalFri} fri)`);
+
+  if (summary.unestimated.length > 0) {
+    console.log(`[dry-run] Unestimated transactions: ${summary.unestimated.length}`);
+    for (const { label, reason } of summary.unestimated) {
+      console.log(`[dry-run] - ${label}: ${reason}`);
+    }
+  }
+};
+
 export const formatFriAsStrk = (value) => {
   const fri = BigInt(value);
   const whole = fri / FRI_PER_STRK;
@@ -33,6 +67,11 @@ export const formatFriAsStrk = (value) => {
 const logFee = (label, fee) => {
   const amount = feeAmount(fee);
   console.log(`[dry-run] ${label}: estimated fee ${formatFriAsStrk(amount)} (${amount} fri)`);
+};
+
+const recordFee = (options, label, fee) => {
+  if (!options.dryRunSummary) return;
+  options.dryRunSummary.estimates.push({ label, amount: BigInt(feeAmount(fee)) });
 };
 
 export const classExists = async (account, classHash) => {
@@ -56,10 +95,13 @@ export const estimateDeclare = async ({ account, contracts, contractName, classH
   }, txOptions(options));
 
   logFee(`${contractName} declare`, fee);
+  recordFee(options, `${contractName} declare`, fee);
   return { alreadyDeclared: false, fee };
 };
 
 export const estimateInvoke = async ({ account, label, call, options = {} }) => {
   const fee = await account.estimateInvokeFee(call, txOptions(options));
   logFee(label, fee);
+  recordFee(options, label, fee);
+  return fee;
 };

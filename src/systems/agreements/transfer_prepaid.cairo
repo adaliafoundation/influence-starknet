@@ -6,7 +6,7 @@ mod TransferPrepaidAgreement {
     use traits::{Into, TryInto};
 
     use influence::{components, config, contracts};
-    use influence::common::{crew::CrewDetailsTrait, math::RoundedDivTrait};
+    use influence::common::{crew::CrewDetailsTrait, math::RoundedDivTrait, starter_pack};
     use influence::components::{Control, Crew, CrewTrait, PrepaidAgreement, PrepaidAgreementTrait, Unique};
     use influence::config::{entities, errors, permissions};
     use influence::contracts::sway::{ISwayDispatcher, ISwayDispatcherTrait};
@@ -49,6 +49,7 @@ mod TransferPrepaidAgreement {
         // Check that crew is delegated, and ready
         let mut crew_details = CrewDetailsTrait::new(caller_crew);
         crew_details.assert_delegated_to(context.caller);
+        starter_pack::assert_target_unrestricted(target, context.now);
 
         // Make sure the calling crew is either the same as, or controls the permitted
         assert(caller_crew == permitted.controller(), 'not controller or permitted');
@@ -57,6 +58,7 @@ mod TransferPrepaidAgreement {
         let prepaid_path = agreement_path(target, permission, permitted.into());
         let mut agreement_data = components::get::<PrepaidAgreement>(prepaid_path)
             .expect(errors::PREPAID_AGREEMENT_NOT_FOUND);
+        starter_pack::assert_lot_lease_transferable(prepaid_path);
 
         // Ensure you can't transfer an expired agreement
         assert(agreement_data.end_time > context.now, errors::AGREEMENT_EXPIRED);
@@ -123,7 +125,7 @@ mod tests {
 
     use influence::components;
     use influence::components::{Control, ControlTrait, Crew, CrewTrait, Location, LocationTrait,
-        PrepaidAgreement, PrepaidAgreementTrait};
+        PrepaidAgreement, PrepaidAgreementTrait, StarterPackLotLease};
     use influence::config::{entities, permissions};
     use influence::contracts::sway::{Sway, ISwayDispatcher, ISwayDispatcherTrait};
     use influence::systems::agreements::helpers::agreement_path;
@@ -186,5 +188,41 @@ mod tests {
         assert(old_agreement_data.end_time == 11000, 'old agreement end time');
         assert(new_agreement_data.start_time == 11000, 'new agreement start time');
         assert(new_agreement_data.end_time == 13600, 'new agreement end time');
+    }
+
+    #[test]
+    #[should_panic(expected: ('starter lease restricted', ))]
+    #[available_gas(15000000)]
+    fn test_transfer_starter_lot_lease_rejects_transfer() {
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
+        helpers::init();
+        mocks::constants();
+        let asteroid = mocks::adalia_prime();
+
+        let controller_crew = influence::test::mocks::delegated_crew(1, 'CONTROLLER');
+        components::set::<Control>(asteroid.path(), ControlTrait::new(controller_crew));
+
+        let lot = EntityTrait::from_position(1, 1);
+        let caller_crew = influence::test::mocks::delegated_crew(2, 'PLAYER');
+        components::set::<Location>(caller_crew.path(), LocationTrait::new(asteroid));
+
+        let prepaid_path = agreement_path(lot, permissions::USE_LOT, caller_crew.into());
+        components::set::<PrepaidAgreement>(
+            prepaid_path,
+            PrepaidAgreementTrait::new(1000, 2628000, 2628000, 0, 2628000)
+        );
+        components::set::<StarterPackLotLease>(prepaid_path, StarterPackLotLease { crew: caller_crew });
+
+        let new_crew = influence::test::mocks::delegated_crew(3, 'PLAYER2');
+        let mut state = TransferPrepaidAgreement::contract_state_for_testing();
+        TransferPrepaidAgreement::run(
+            ref state,
+            lot,
+            permissions::USE_LOT,
+            caller_crew,
+            new_crew,
+            caller_crew,
+            mocks::context('PLAYER')
+        );
     }
 }

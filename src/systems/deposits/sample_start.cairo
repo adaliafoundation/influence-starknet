@@ -12,7 +12,7 @@ mod SampleDepositStart {
     use cubit::f64::{Fixed, FixedTrait, ONE};
 
     use influence::{components, config};
-    use influence::common::{inventory, math::RoundedDivTrait, position, random, crew::CrewDetailsTrait};
+    use influence::common::{inventory, math::RoundedDivTrait, position, random, starter_pack, crew::CrewDetailsTrait};
     use influence::components::{Building, BuildingTrait, Celestial, CelestialTrait, Control, ControlTrait, Crew,
         CrewTrait, Inventory, InventoryTrait, Location, LocationTrait, Ship, ShipTrait,
         modifier_type::types as modifier_types,
@@ -72,27 +72,31 @@ mod SampleDepositStart {
         crew_details.assert_all_ready_within(context.caller, context.now);
         let mut crew_data = crew_details.component;
 
-        // Check for permissions on origin inventory
-        if origin.label == entities::BUILDING {
-            components::get::<Building>(origin.path()).expect(errors::BUILDING_NOT_FOUND).assert_operational();
-        } else if origin.label == entities::SHIP {
-            components::get::<Ship>(origin.path()).expect(errors::SHIP_NOT_FOUND).assert_stationary();
-            let location = components::get::<Location>(origin.path()).expect(errors::LOCATION_NOT_FOUND);
+        // Check that all buildings are present on the same asteroid
+        let mut origin_ast = crew_details.asteroid_id();
+        let mut origin_lot = crew_details.lot_id();
+        let uses_starter_allowance = origin.is_empty();
 
-            match components::get::<Building>(location.location.path()) {
-                Option::Some(building_data) => building_data.assert_operational(),
-                Option::None(_) => ()
-            };
+        if !uses_starter_allowance {
+            // Check for permissions on origin inventory
+            if origin.label == entities::BUILDING {
+                components::get::<Building>(origin.path()).expect(errors::BUILDING_NOT_FOUND).assert_operational();
+            } else if origin.label == entities::SHIP {
+                components::get::<Ship>(origin.path()).expect(errors::SHIP_NOT_FOUND).assert_stationary();
+                let location = components::get::<Location>(origin.path()).expect(errors::LOCATION_NOT_FOUND);
+
+                match components::get::<Building>(location.location.path()) {
+                    Option::Some(building_data) => building_data.assert_operational(),
+                    Option::None(_) => ()
+                };
+            }
+
+            caller_crew.assert_can(origin, permissions::REMOVE_PRODUCTS);
+            let (_origin_ast, _origin_lot) = origin.to_position();
+            origin_ast = _origin_ast;
+            origin_lot = _origin_lot;
         }
 
-        caller_crew.assert_can(origin, permissions::REMOVE_PRODUCTS);
-        let mut origin_path:Array<felt252> = Default::default();
-        origin_path.append(origin.into());
-        origin_path.append(origin_slot.into());
-        let mut origin_data = components::get::<Inventory>(origin_path.span()).expect(errors::INVENTORY_NOT_FOUND);
-
-        // Check that all buildings are present on the same asteroid
-        let (origin_ast, origin_lot) = origin.to_position();
         let (lot_ast, lot_lot) = lot.to_position();
         assert(origin_ast == lot_ast, errors::DIFFERENT_ASTEROIDS);
         assert((origin_lot != 0) && (lot_lot != 0), errors::IN_ORBIT);
@@ -107,11 +111,19 @@ mod SampleDepositStart {
         let dist_eff = crew_details.bonus(modifier_types::FREE_TRANSPORT_DISTANCE, context.now);
         let origin_to_lot = position::hopper_travel_time(origin_lot, lot_lot, ast.radius, hopper_eff, dist_eff);
 
-        // Remove core sample from inventory
-        let mut items: Array<InventoryItem> = Default::default();
-        items.append(InventoryItemTrait::new(product_types::CORE_DRILL, 1));
-        inventory::remove(ref origin_data, items.span());
-        components::set::<Inventory>(origin_path.span(), origin_data);
+        // Consume the core drill from inventory, or from the starter-pack entitlement.
+        if uses_starter_allowance {
+            starter_pack::consume_core_sample_allowance(caller_crew);
+        } else {
+            let mut origin_path:Array<felt252> = Default::default();
+            origin_path.append(origin.into());
+            origin_path.append(origin_slot.into());
+            let mut origin_data = components::get::<Inventory>(origin_path.span()).expect(errors::INVENTORY_NOT_FOUND);
+            let mut items: Array<InventoryItem> = Default::default();
+            items.append(InventoryItemTrait::new(product_types::CORE_DRILL, 1));
+            inventory::remove(ref origin_data, items.span());
+            components::set::<Inventory>(origin_path.span(), origin_data);
+        }
 
         // Find existing deposit (for improvement) or create a new one
         let deposit = EntityTrait::new(entities::DEPOSIT, next_id(entities::DEPOSIT.into()));

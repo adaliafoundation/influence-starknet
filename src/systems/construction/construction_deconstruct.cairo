@@ -12,7 +12,7 @@ mod ConstructionDeconstruct {
     use cubit::f64::FixedTrait;
 
     use influence::{components, config, entities::next_id};
-    use influence::common::{crew::CrewDetailsTrait, inventory, math::RoundedDivTrait, position};
+    use influence::common::{crew::CrewDetailsTrait, inventory, math::RoundedDivTrait, position, starter_pack};
     use influence::components::{Celestial, CelestialTrait, Control, ControlTrait, Crew, CrewTrait, Dock, DockTrait,
         DryDock, DryDockTrait, Exchange, ExchangeTrait, Ship, ShipTrait, Station, StationTrait, Unique, UniqueTrait,
         building::{statuses as building_statuses, Building, BuildingTrait},
@@ -58,6 +58,7 @@ mod ConstructionDeconstruct {
         // Check that building has correct status
         let mut building_data = components::get::<Building>(building.path()).expect(errors::BUILDING_NOT_FOUND);
         building_data.assert_operational();
+        starter_pack::assert_building_unrestricted(building, context.now);
 
         // Check that the crew is in the right location
         let (building_ast, building_lot) = building.to_position();

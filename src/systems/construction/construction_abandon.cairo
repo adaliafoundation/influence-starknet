@@ -8,7 +8,7 @@ mod ConstructionAbandon {
     use traits::Into;
 
     use influence::{components, entities::next_id};
-    use influence::common::crew::CrewDetailsTrait;
+    use influence::common::{crew::CrewDetailsTrait, starter_pack};
     use influence::components::{BuildingTypeTrait, Celestial, CelestialTrait, Control, ControlTrait, Inventory,
         InventoryTrait, Location, LocationTrait, Unique, UniqueTrait,
         building::{statuses as building_statuses, Building, BuildingTrait}};
@@ -44,6 +44,7 @@ mod ConstructionAbandon {
         // Check that building is ready for deconstruction
         let mut building_data = components::get::<Building>(building.path()).expect(errors::BUILDING_NOT_FOUND);
         building_data.assert_planned();
+        starter_pack::assert_building_unrestricted(building, context.now);
 
         // Check that site inventory is empty
         let config = BuildingTypeTrait::by_type(building_data.building_type);

@@ -9,7 +9,7 @@ mod ResupplyFood {
     use cubit::f64::FixedTrait;
     use cubit::f64::math::comp;
 
-    use influence::common::{inventory, position, crew::{CrewDetailsTrait, time_since_fed}};
+    use influence::common::{inventory, position, starter_pack, crew::{CrewDetailsTrait, time_since_fed}};
     use influence::{components, config};
     use influence::components::{Celestial, CelestialTrait, Crew, CrewTrait, Inventory, InventoryTrait, Location,
         LocationTrait, Ship, ShipTrait,
@@ -66,35 +66,43 @@ mod ResupplyFood {
         crew_details.assert_all_ready(context.caller, context.now);
         let mut crew_data = crew_details.component;
 
-        // Check permissions
-        caller_crew.assert_can(origin, permissions::REMOVE_PRODUCTS);
+        let mut origin_lot = crew_details.lot_id();
 
-        // Check crew location
-        let (origin_ast, origin_lot) = origin.to_position();
-        assert(crew_details.asteroid_id() == origin_ast, errors::DIFFERENT_ASTEROIDS);
+        let last_fed = if origin.is_empty() {
+            starter_pack::consume_food_reload_allowance(caller_crew);
+            context.now
+        } else {
+            // Check permissions
+            caller_crew.assert_can(origin, permissions::REMOVE_PRODUCTS);
 
-        // Check if the crew location is same as origin, otherwise ensure there's not orbital transfer
-        let location_data = components::get::<Location>(caller_crew.path()).expect(errors::LOCATION_NOT_FOUND);
-        if location_data.location != origin {
-            assert((crew_details.lot_id() != 0) && (origin_lot != 0), errors::IN_ORBIT);
-        }
+            // Check crew location
+            let (origin_ast, _origin_lot) = origin.to_position();
+            origin_lot = _origin_lot;
+            assert(crew_details.asteroid_id() == origin_ast, errors::DIFFERENT_ASTEROIDS);
 
-        // Get origin inventory and reduce food amount
-        let mut origin_keys: Array<felt252> = Default::default();
-        origin_keys.append(origin.into());
-        origin_keys.append(origin_slot.into());
-        let mut inv_data = components::get::<Inventory>(origin_keys.span()).expect(errors::INVENTORY_NOT_FOUND);
-        let mut items: Array<InventoryItem> = Default::default();
-        items.append(InventoryItemTrait::new(product_types::FOOD, food));
-        inventory::remove(ref inv_data, items.span());
-        components::set::<Inventory>(origin_keys.span(), inv_data);
+            // Check if the crew location is same as origin, otherwise ensure there's not orbital transfer
+            let location_data = components::get::<Location>(caller_crew.path()).expect(errors::LOCATION_NOT_FOUND);
+            if location_data.location != origin {
+                assert((crew_details.lot_id() != 0) && (origin_lot != 0), errors::IN_ORBIT);
+            }
 
-        // Calculate new last fed time
-        let num_crewmates: u64 = crew_data.roster.len().into();
-        let current_food = crew_details.current_food(context.now);
-        let new_food = (current_food * num_crewmates + food) / num_crewmates;
-        assert(new_food <= config::get('CREWMATE_FOOD_PER_YEAR').try_into().unwrap(), errors::FOOD_LIMIT_REACHED);
-        let last_fed = context.now - min(time_since_fed(new_food, crew_details.consume_mod()), context.now);
+            // Get origin inventory and reduce food amount
+            let mut origin_keys: Array<felt252> = Default::default();
+            origin_keys.append(origin.into());
+            origin_keys.append(origin_slot.into());
+            let mut inv_data = components::get::<Inventory>(origin_keys.span()).expect(errors::INVENTORY_NOT_FOUND);
+            let mut items: Array<InventoryItem> = Default::default();
+            items.append(InventoryItemTrait::new(product_types::FOOD, food));
+            inventory::remove(ref inv_data, items.span());
+            components::set::<Inventory>(origin_keys.span(), inv_data);
+
+            // Calculate new last fed time
+            let num_crewmates: u64 = crew_data.roster.len().into();
+            let current_food = crew_details.current_food(context.now);
+            let new_food = (current_food * num_crewmates + food) / num_crewmates;
+            assert(new_food <= config::get('CREWMATE_FOOD_PER_YEAR').try_into().unwrap(), errors::FOOD_LIMIT_REACHED);
+            context.now - min(time_since_fed(new_food, crew_details.consume_mod()), context.now)
+        };
 
         // Calculate the crew and hopper transfer times
         let asteroid = EntityTrait::new(entities::ASTEROID, crew_details.asteroid_id());
@@ -139,8 +147,8 @@ mod tests {
 
     use influence::{config, components};
     use influence::common::inventory;
-    use influence::components::{Control, ControlTrait, Crew, CrewTrait, Inventory, InventoryTrait, Location,
-        LocationTrait, PrepaidAgreement, Station,
+    use influence::components::{BuildingAllowance, Control, ControlTrait, Crew, CrewTrait, Inventory, InventoryTrait,
+        Location, LocationTrait, PrepaidAgreement, StarterPack, Station,
         modifier_type::types as modifier_types,
         product_type::types as product_types
     };
@@ -188,5 +196,103 @@ mod tests {
         // Check origin inventory
         inv_data = components::get::<Inventory>(array![warehouse.into(), 2.into()].span()).unwrap();
         assert(inv_data.contents.amount_of(product_types::FOOD) == 0, 'wrong food amount');
+    }
+
+    #[test]
+    #[available_gas(20000000)]
+    fn test_resupply_food_from_starter_pack() {
+        helpers::init();
+        mocks::constants();
+        starknet::testing::set_block_timestamp(2000000);
+
+        let asteroid = influence::test::mocks::asteroid();
+        let crew = influence::test::mocks::delegated_crew(1, 'PLAYER');
+        let habitat = mocks::public_habitat(crew, 1);
+
+        components::set::<Location>(crew.path(), LocationTrait::new(habitat));
+        components::set::<Location>(habitat.path(), LocationTrait::new(EntityTrait::from_position(asteroid.id, 25)));
+
+        mocks::modifier_type(modifier_types::HOPPER_TRANSPORT_TIME);
+        mocks::modifier_type(modifier_types::FREE_TRANSPORT_DISTANCE);
+
+        let allowances: Array<BuildingAllowance> = Default::default();
+        components::set::<StarterPack>(crew.path(), StarterPack {
+            product_id: 1,
+            restricted_until: 200,
+            valid: true,
+            invalidated_at: 0,
+            building_allowances: allowances.span(),
+            lot_allowance: 0,
+            food_reload_allowance: 1,
+            core_sample_allowance: 0
+        });
+
+        let mut state = ResupplyFood::contract_state_for_testing();
+        ResupplyFood::run(
+            ref state,
+            EntityTrait::new(0, 0),
+            0,
+            1000,
+            crew,
+            mocks::context('PLAYER')
+        );
+
+        let crew_data = components::get::<Crew>(crew.path()).unwrap();
+        assert(crew_data.last_fed == 2000000, 'wrong last fed');
+
+        let starter_pack = components::get::<StarterPack>(crew.path()).unwrap();
+        assert(starter_pack.food_reload_allowance == 0, 'wrong starter food');
+    }
+
+    #[test]
+    #[available_gas(15000000)]
+    #[should_panic(expected: ('E6025: insufficient amount', ))]
+    fn test_resupply_food_from_starter_pack_requires_entitlement() {
+        helpers::init();
+        mocks::constants();
+        starknet::testing::set_block_timestamp(2000000);
+
+        let asteroid = influence::test::mocks::asteroid();
+        let crew = influence::test::mocks::delegated_crew(1, 'PLAYER');
+        let habitat = mocks::public_habitat(crew, 1);
+        components::set::<Location>(crew.path(), LocationTrait::new(habitat));
+        components::set::<Location>(habitat.path(), LocationTrait::new(EntityTrait::from_position(asteroid.id, 25)));
+        mocks::modifier_type(modifier_types::HOPPER_TRANSPORT_TIME);
+        mocks::modifier_type(modifier_types::FREE_TRANSPORT_DISTANCE);
+
+        let mut state = ResupplyFood::contract_state_for_testing();
+        ResupplyFood::run(ref state, EntityTrait::new(0, 0), 0, 1000, crew, mocks::context('PLAYER'));
+    }
+
+    #[test]
+    #[available_gas(15000000)]
+    #[should_panic(expected: ('starter pack invalid', ))]
+    fn test_resupply_food_from_starter_pack_rejects_invalid_pack() {
+        helpers::init();
+        mocks::constants();
+        starknet::testing::set_block_timestamp(2000000);
+
+        let asteroid = influence::test::mocks::asteroid();
+        let crew = influence::test::mocks::delegated_crew(1, 'PLAYER');
+        let habitat = mocks::public_habitat(crew, 1);
+        components::set::<Location>(crew.path(), LocationTrait::new(habitat));
+        components::set::<Location>(habitat.path(), LocationTrait::new(EntityTrait::from_position(asteroid.id, 25)));
+        mocks::modifier_type(modifier_types::HOPPER_TRANSPORT_TIME);
+        mocks::modifier_type(modifier_types::FREE_TRANSPORT_DISTANCE);
+
+        let allowances: Array<BuildingAllowance> = Default::default();
+        components::set::<StarterPack>(crew.path(), StarterPack {
+            product_id: 1,
+            restricted_until: 200,
+            valid: false,
+            invalidated_at: 100,
+            building_allowances: allowances.span(),
+            lot_allowance: 0,
+            food_reload_allowance: 1,
+            core_sample_allowance: 0
+        });
+
+        let mut state = ResupplyFood::contract_state_for_testing();
+        ResupplyFood::run(ref state, EntityTrait::new(0, 0), 0, 1000, crew, mocks::context('PLAYER'));
     }
 }

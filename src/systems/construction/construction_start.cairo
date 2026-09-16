@@ -11,7 +11,7 @@ mod ConstructionStart {
     use cubit::f64::FixedTrait;
 
     use influence::{components, config, entities::next_id};
-    use influence::common::{crew::CrewDetailsTrait, inventory, math::RoundedDivTrait, position};
+    use influence::common::{crew::CrewDetailsTrait, inventory, math::RoundedDivTrait, position, starter_pack};
     use influence::components::{Celestial, CelestialTrait, Control, ControlTrait, Crew, CrewTrait,
         ProcessTypeTrait, Ship, ShipTrait, Unique, UniqueTrait,
         building::{statuses as building_statuses, Building, BuildingTrait},
@@ -63,16 +63,25 @@ mod ConstructionStart {
         // Update / lock inventory
         let mut inv_data = components::get::<Inventory>(site_path.span()).expect(errors::INVENTORY_NOT_FOUND);
 
-        // Check that enough materials are present
+        // Check that enough materials are present, or consume a starter-pack building entitlement.
         let process_config = ProcessTypeTrait::by_type(config.process_type);
 
+        let mut has_required_inputs = true;
         let mut iter = 0;
         loop {
             if iter >= process_config.inputs.len() { break; }
             let item = *process_config.inputs.at(iter);
-            assert(inv_data.contents.amount_of(item.product) >= item.amount, errors::INSUFFICIENT_AMOUNT);
+            if inv_data.contents.amount_of(item.product) < item.amount {
+                has_required_inputs = false;
+            }
             iter += 1;
         };
+
+        if !has_required_inputs {
+            inv_data.assert_empty();
+            let starter_pack = starter_pack::consume_building_allowance(caller_crew, building_data.building_type);
+            starter_pack::mark_building_funded(building, caller_crew, starter_pack.restricted_until);
+        }
 
         // Lock inventory
         inv_data.disable();

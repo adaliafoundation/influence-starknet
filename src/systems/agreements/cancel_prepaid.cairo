@@ -6,7 +6,7 @@ mod CancelPrepaidAgreement {
     use traits::Into;
 
     use influence::{components, config, contracts};
-    use influence::common::{crew::CrewDetailsTrait, math::RoundedDivTrait};
+    use influence::common::{crew::CrewDetailsTrait, math::RoundedDivTrait, starter_pack};
     use influence::components::{Control, Crew, CrewTrait, PrepaidAgreement, PrepaidAgreementTrait};
     use influence::config::{entities, errors, permissions};
     use influence::contracts::sway::{ISwayDispatcher, ISwayDispatcherTrait};
@@ -77,6 +77,8 @@ mod CancelPrepaidAgreement {
 
         assert(controller == caller_crew, errors::INCORRECT_CONTROLLER);
 
+        starter_pack::assert_lot_lease_transferable(prepaid_path);
+
         // Determine if the controller needs to pay back a portion of prepaid funds
         if agreement_data.end_time > context.now + agreement_data.notice_period {
             let delegate = components::get::<Crew>(permitted.controller().path())
@@ -136,7 +138,7 @@ mod tests {
 
     use influence::components;
     use influence::components::{Control, ControlTrait, Crew, CrewTrait, Location, LocationTrait,
-        PrepaidAgreement, PrepaidAgreementTrait};
+        PrepaidAgreement, PrepaidAgreementTrait, StarterPackLotLease};
     use influence::config::{entities, permissions};
     use influence::contracts::sway::{Sway, ISwayDispatcher, ISwayDispatcherTrait};
     use influence::systems::agreements::helpers::agreement_path;
@@ -211,6 +213,42 @@ mod tests {
         // Check that the agreement was cancelled
         let agreement_data = components::get::<PrepaidAgreement>(prepaid_path).unwrap();
         assert(agreement_data.notice_time != 0, 'wrong notice time');
+    }
+
+    #[test]
+    #[available_gas(15000000)]
+    #[should_panic(expected: ('starter lease restricted', 'ENTRYPOINT_FAILED'))]
+    fn test_cancel_starter_lot_lease_rejects_cancellation() {
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
+        helpers::init();
+        let asteroid = mocks::adalia_prime();
+
+        let controller_crew = influence::test::mocks::delegated_crew(1, 'CONTROLLER');
+        components::set::<Control>(asteroid.path(), ControlTrait::new(controller_crew));
+        components::set::<Location>(controller_crew.path(), LocationTrait::new(asteroid));
+
+        let lot = EntityTrait::from_position(1, 1);
+        let tenant = influence::test::mocks::delegated_crew(2, 'PLAYER');
+        let prepaid_path = agreement_path(lot, permissions::USE_LOT, tenant.into());
+        components::set::<PrepaidAgreement>(
+            prepaid_path,
+            PrepaidAgreement {
+                rate: 1000,
+                initial_term: 2628000,
+                notice_period: 2628000,
+                start_time: 0,
+                end_time: 2628000,
+                notice_time: 0
+            }
+        );
+        components::set::<StarterPackLotLease>(prepaid_path, StarterPackLotLease { crew: tenant });
+
+        starknet::testing::set_block_timestamp(100);
+        let class_hash: ClassHash = CancelPrepaidAgreement::TEST_CLASS_HASH.try_into().unwrap();
+        ICancelPrepaidAgreementLibraryDispatcher { class_hash: class_hash }.run(
+            lot, permissions::USE_LOT.into(), tenant, controller_crew, mocks::context('CONTROLLER')
+        );
+
     }
 
     #[test]

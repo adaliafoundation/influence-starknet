@@ -44,6 +44,7 @@ mod ship_type;
 mod ship_variant_type;
 mod station;
 mod station_type;
+mod starter_pack;
 mod unique;
 
 use agreements::contract::{ContractAgreement, ContractAgreementTrait};
@@ -94,6 +95,10 @@ use private_sale::{PrivateSale, PrivateSaleTrait};
 use processor::{Processor, ProcessorTrait};
 use ship::{Ship, ShipTrait};
 use station::{Station, StationTrait};
+use starter_pack::{
+    products as starter_pack_products, BuildingAllowance, StarterPack, StarterPackBuildingFunding, StarterPackLotLease,
+    StarterPackTrait
+};
 use unique::{Unique, UniqueTrait};
 
 const STORAGE_STRATEGY: u32 = 0; // rollup

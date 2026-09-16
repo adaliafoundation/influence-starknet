@@ -13,11 +13,8 @@ mod Dispatcher {
 
     use influence::{components, systems};
     use influence::common::{packed, random};
+    use influence::config::roles;
     use influence::types::{Entity, EntityTrait};
-
-    mod roles {
-        const ADMIN: u64 = 1;
-    }
 
     #[storage]
     struct Storage {

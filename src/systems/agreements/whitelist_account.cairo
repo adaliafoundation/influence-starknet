@@ -5,7 +5,7 @@ mod WhitelistAccount {
     use traits::Into;
 
     use influence::components;
-    use influence::common::crew::CrewDetailsTrait;
+    use influence::common::{crew::CrewDetailsTrait, starter_pack};
     use influence::components::{WhitelistAgreement, WhitelistAgreementTrait};
     use influence::systems::agreements::helpers::agreement_path;
     use influence::types::{Context, Entity, EntityTrait};
@@ -41,6 +41,7 @@ mod WhitelistAccount {
         let mut crew_details = CrewDetailsTrait::new(caller_crew);
         crew_details.assert_delegated_to(context.caller);
         caller_crew.assert_controls(target);
+        starter_pack::assert_target_unrestricted(target, context.now);
 
         // Update crew in whitelist
         let path = agreement_path(target, permission, permitted.into());
