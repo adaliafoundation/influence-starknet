@@ -302,11 +302,11 @@ export default {
 
     // Seeding
     InitializeAsteroid: { isSystem: true },
-    SeedAsteroids: { isSystem: true },
-    SeedCrewmates: { isSystem: true },
-    SeedColony: { isSystem: true },
-    SeedHabitat: { isSystem: true },
-    SeedOrders: { isSystem: true },
+    SeedAsteroids: { isSystem: true, skipUpdateAll: true },
+    SeedCrewmates: { isSystem: true, skipUpdateAll: true },
+    SeedColony: { isSystem: true, skipUpdateAll: true },
+    SeedHabitat: { isSystem: true, skipUpdateAll: true },
+    SeedOrders: { isSystem: true, skipUpdateAll: true },
 
     // Ship
     DockShip: { isSystem: true },

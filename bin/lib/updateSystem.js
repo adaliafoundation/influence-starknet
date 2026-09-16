@@ -1,6 +1,7 @@
 import ibis from '@influenceth/ibis';
 import { shortString, hash } from 'starknet';
 import { estimateDeclare, estimateInvoke, isDryRun, recordDryRunSystem, txOptions } from './dryRun.js';
+import { declareClass } from './declareClass.js';
 import { isAcceptedBaseline, updateAcceptedBaseline } from './baseline.js';
 
 const updateSystem = async (systemName, networkName, account, options = {}) => {
@@ -13,7 +14,7 @@ const updateSystem = async (systemName, networkName, account, options = {}) => {
     let call = dispatcher.populate('system', [ shortString.encodeShortString(systemName) ]);
     registeredClassHash = '0x' + BigInt(await dispatcher.system(call.calldata)).toString(16).padStart(64, '0');
     await account.getClass(registeredClassHash);
-    console.log(`System ${systemName} already declared with hash: ${registeredClassHash}`);
+    console.log(`System ${systemName} currently registered with hash: ${registeredClassHash}`);
   } catch (e) {
     // If it wasn't found, we need to declare
     console.log(`System ${systemName} not declared, declaring...`);
@@ -36,7 +37,7 @@ const updateSystem = async (systemName, networkName, account, options = {}) => {
       return;
     }
 
-    console.log(`System ${systemName} class hash changed, registering...`);
+    console.log(`System ${systemName} class hash changed; declaration and registration required`);
     needsDeclare = true;
     needsRegister = true;
   }
@@ -54,22 +55,8 @@ const updateSystem = async (systemName, networkName, account, options = {}) => {
         classHash: computedClassHash
       });
     } else {
-      try {
-        const res = await contracts.declare(systemName, { account }, txOptions(options));
-        if (res?.transaction_hash) {
-          await account.waitForTransaction(res.transaction_hash);
-        }
-        console.log(`System ${systemName} declared with hash: ${computedClassHash}`);
-        needsRegister = true;
-      } catch (e) {
-        if (e.message.includes('already declared')) {
-          console.log(`System ${systemName} already declared`);
-        } else {
-          console.log(e);
-          console.log(`Error declaring ${systemName} system`);
-          return;
-        }
-      }
+      await declareClass({ contracts, contractName: systemName, account, options, classHash: computedClassHash });
+      needsRegister = true;
     }
   }
 
@@ -86,12 +73,13 @@ const updateSystem = async (systemName, networkName, account, options = {}) => {
       }
 
       const res = await dispatcher.register_system(call.calldata, txOptions(options));
-      await account.waitForTransaction(res.transaction_hash);
+      console.log(`${systemName}: registration submitted: ${res.transaction_hash}`);
+      const receipt = await account.waitForTransaction(res.transaction_hash);
+      if (receipt.execution_status === 'REVERTED') throw new Error(receipt.revert_reason || 'Registration reverted');
       updateAcceptedBaseline({ contracts, contractName: systemName, classHash: computedClassHash });
       console.log(`System ${systemName} registered with Dispatcher as: ${computedClassHash}`);
     } catch (e) {
-      console.log(e);
-      console.log(`Error registering ${systemName} system with Dispatcher`);
+      throw new Error(`Error registering ${systemName} system with Dispatcher`, { cause: e });
     }
   }
 };

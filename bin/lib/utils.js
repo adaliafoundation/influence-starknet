@@ -2,6 +2,7 @@ import ContractConfig from './ContractConfig.js';
 import { estimateDeclare, isDryRun, txOptions } from './dryRun.js';
 import { updateAcceptedBaseline } from './baseline.js';
 import { hash } from 'starknet';
+import { declareClass } from './declareClass.js';
 
 export const parseConstructorArgs = (contractName, account, network) => {
   const config = new ContractConfig(network);
@@ -67,22 +68,4 @@ export const loadOrDeployContract = async ({
   return { classHash, contractAddress, contract };
 };
 
-export const declareIfNeeded = async ({
-  contracts,
-  contractName,
-  account,
-  options = {},
-  classHash
-}) => {
-  if (isDryRun(options)) {
-    return await estimateDeclare({ contracts, contractName, account, options, classHash });
-  }
-
-  try {
-    const res = await contracts.declare(contractName, { account }, txOptions(options));
-    await account.waitForTransaction(res.transaction_hash);
-    console.log(`Contract ${contractName} declared with hash: ${classHash}`);
-  } catch (e) {
-    console.log(`Contract ${contractName} already declared with hash: ${classHash}`);
-  }
-};
+export const declareIfNeeded = declareClass;

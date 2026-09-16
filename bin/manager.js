@@ -2,6 +2,7 @@ import { exec } from 'node:child_process';
 import util from 'node:util';
 import ibis from '@influenceth/ibis';
 import Account from '@influenceth/ibis/src/lib/Account.js';
+import { logger } from 'starknet';
 import yargs from 'yargs'
 import { hideBin } from 'yargs/helpers'
 
@@ -19,6 +20,8 @@ import updateConfigs from './commands/updateConfigs.js';
 import updateConstant from './commands/updateConstant.js';
 import cancelOrders from './commands/cancelOrders.js';
 
+logger.setLogLevel('WARN');
+
 const buildHelper = async () => {
   const execPromise = util.promisify(exec);
 
@@ -33,8 +36,15 @@ const buildHelper = async () => {
 
 const DEFAULT_TX_RETRY_INTERVAL_MS = 500;
 const DEFAULT_TX_LIFECYCLE_RETRIES = 20;
+const DEFAULT_TIP_MAX_BLOCKS = 20;
 
-const applyFastWaitDefaults = (account) => {
+const applyAccountDefaults = (account) => {
+  const originalGetEstimateTip = account.getEstimateTip.bind(account);
+  account.getEstimateTip = (blockIdentifier, options = {}) => originalGetEstimateTip(blockIdentifier, {
+    maxBlocks: DEFAULT_TIP_MAX_BLOCKS,
+    ...options
+  });
+
   const originalWaitForTransaction = account.waitForTransaction.bind(account);
   account.waitForTransaction = (txHash, options = {}) => {
     return originalWaitForTransaction(txHash, {
@@ -77,7 +87,7 @@ const getAccount = async (accountName, networkName) => {
     if (!account) throw new Error(`Account ${accountName} not found`);
   }
 
-  return applyFastWaitDefaults(account);
+  return applyAccountDefaults(account);
 }
 
 const buildTxOptions = ({ maxFee, tip, dryRun, ignoreBaseline }) => {
@@ -125,6 +135,7 @@ export const update = async ({ name, names, network, account, skipBuild, maxFee,
     }
   } catch (error) {
     console.error(error);
+    process.exitCode = 1;
   } finally {
     printDryRunSummary(options?.dryRunSummary);
   }
@@ -147,10 +158,15 @@ export const updateAll = async ({ network, account, skipBuild, maxFee, tip, dryR
     }
 
     for (const name of systems) {
+      if (config.config[name].skipUpdateAll) {
+        console.log(`System ${name} excluded from updateAll; use update --name ${name} to update explicitly`);
+        continue;
+      }
       await updateSystem(name, network, resolvedAccount, options);
     }
   } catch (error) {
     console.error(error);
+    process.exitCode = 1;
   } finally {
     printDryRunSummary(options?.dryRunSummary);
   }

@@ -79,6 +79,18 @@ This step depends on the `cairo-test` command from the cairo build to be accessi
 - `npm run manager update -- --name <contractName> --network <networkName> --account <accountName`
 - `npm run manager updateAll -- --network <networkName> --account <accountName`
 
+On mainnet, `updateAll` (including `--dryRun`) excludes `SeedAsteroids`, `SeedCrewmates`,
+`SeedColony`, `SeedHabitat`, and `SeedOrders`. These one-time seeding systems can still
+be updated explicitly with `update --name <systemName>`. Other networks retain them
+in `updateAll` for environment setup.
+
+Declarations log their transaction hash immediately. If confirmation times out or the
+SDK reports possible mempool eviction, the manager checks whether the class landed
+and retries confirmation of the same transaction up to three times total. It does
+not automatically resubmit or increase fees. Unresolved declarations and failed
+system registrations stop the update with a nonzero exit status. Rerunning checks
+whether the desired class already exists before submitting another declaration.
+
 ### Additional configuration requirements at "Mainnet Limited Release":
 - manually run `add_grant` on `Asteroid` contract with `{ account: dispatcher.address, role: 2 }`
 - manually run `add_grant` on `Crewmate` contract with `{ account: dispatcher.address, role: 2 }`
