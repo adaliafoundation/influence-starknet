@@ -7,6 +7,7 @@ import yargs from 'yargs'
 import { hideBin } from 'yargs/helpers'
 
 import ContractConfig from './lib/ContractConfig.js';
+import { applyAccountDefaults } from './lib/accountDefaults.js';
 import updateContract from './lib/updateContract.js';
 import updateDispatcher from './lib/updateDispatcher.js';
 import updateSystem from './lib/updateSystem.js';
@@ -35,28 +36,6 @@ const buildHelper = async () => {
   } catch (error) {
     console.log(error);
   }
-};
-
-const DEFAULT_TX_RETRY_INTERVAL_MS = 500;
-const DEFAULT_TX_LIFECYCLE_RETRIES = 20;
-const DEFAULT_TIP_MAX_BLOCKS = 20;
-
-const applyAccountDefaults = (account) => {
-  const originalGetEstimateTip = account.getEstimateTip.bind(account);
-  account.getEstimateTip = (blockIdentifier, options = {}) => originalGetEstimateTip(blockIdentifier, {
-    maxBlocks: DEFAULT_TIP_MAX_BLOCKS,
-    ...options
-  });
-
-  const originalWaitForTransaction = account.waitForTransaction.bind(account);
-  account.waitForTransaction = (txHash, options = {}) => {
-    return originalWaitForTransaction(txHash, {
-      retryInterval: DEFAULT_TX_RETRY_INTERVAL_MS,
-      lifeCycleRetries: DEFAULT_TX_LIFECYCLE_RETRIES,
-      ...options
-    });
-  };
-  return account;
 };
 
 const getDevnetPredeployedAccount = async (provider, index = 0) => {
