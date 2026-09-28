@@ -15,3 +15,5 @@ mod types;
 
 mod missions;
 mod mission_eligibility;
+
+mod lot_access;

@@ -246,13 +246,13 @@
     }
   },
   "influence.ConstructionPlan.l6kosdt0o2r2g": {
-    "declaredAt": 1790258649329,
-    "declareTxHash": "0x61d466ecdd8e6ca5077224a72d043000513446b7ed7ca6dcc993f14c62fab37",
-    "classHash": "0x2767557558472901e44598c107142134db538aefbb60e6e036dd4fffc982e11",
+    "declaredAt": 1790590056974,
+    "declareTxHash": "0x5e869207e45c3c80d094e4b506a331d344116901e1042e13872946ac6d74594",
+    "classHash": "0x7389f1934ddfc65336fbd6839778011372f98efd8c8fa03c04eb117cb770293",
     "baseline": {
-      "acceptedClassHash": "0x2767557558472901e44598c107142134db538aefbb60e6e036dd4fffc982e11",
-      "classHash": "0x2767557558472901e44598c107142134db538aefbb60e6e036dd4fffc982e11",
-      "updatedAt": "2026-09-24T14:04:38.052Z",
+      "acceptedClassHash": "0x7389f1934ddfc65336fbd6839778011372f98efd8c8fa03c04eb117cb770293",
+      "classHash": "0x7389f1934ddfc65336fbd6839778011372f98efd8c8fa03c04eb117cb770293",
+      "updatedAt": "2026-09-28T10:08:06.123Z",
       "reason": "updated on-chain class hash"
     }
   },
@@ -902,14 +902,14 @@
     }
   },
   "influence.UndockShip.8vb7ev6ori9b2": {
-    "declaredAt": 1731507574241,
-    "declareTxHash": "0x7a5cf31e755eeab45e8fd3b9dfa25fcb2b1a820c27ac866bd4d22c6567fef82",
-    "classHash": "0xb5d283fbe3a63ea6360df13ce85db26a3fd14f324642c1f79f511e69c0bacd",
+    "declaredAt": 1790590148215,
+    "declareTxHash": "0x7d123b41188ba1bde57f38d2b6a9109610e088667567c43491cf8d13601c49c",
+    "classHash": "0x4a5a58a6ca119d025705d54e3860afb2cf0b46c92b82bceade249fc09d2a09b",
     "baseline": {
-      "acceptedClassHash": "0xb5d283fbe3a63ea6360df13ce85db26a3fd14f324642c1f79f511e69c0bacd",
-      "classHash": "0x24455b1de3d15bd1b20a67b6d5a753eb1194cc6e360a9c2820f107dffab4e5f",
-      "createdAt": "2026-07-16",
-      "reason": "accepted Cairo 2.7 migration baseline"
+      "acceptedClassHash": "0x4a5a58a6ca119d025705d54e3860afb2cf0b46c92b82bceade249fc09d2a09b",
+      "classHash": "0x4a5a58a6ca119d025705d54e3860afb2cf0b46c92b82bceade249fc09d2a09b",
+      "updatedAt": "2026-09-28T10:09:37.248Z",
+      "reason": "updated on-chain class hash"
     }
   },
   "influence.AnnotateEvent.smrrmpp4slcj2": {
