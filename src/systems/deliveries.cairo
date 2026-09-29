@@ -4,6 +4,8 @@ mod dump;
 mod package;
 mod receive;
 mod send;
+#[cfg(test)]
+mod payment_tests;
 
 use accept::AcceptDelivery;
 use cancel::CancelDelivery;

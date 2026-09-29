@@ -253,6 +253,35 @@ fn owner_cannot_repossess_active_tenant_building() {
 
 #[test]
 #[available_gas(50000000)]
+#[should_panic(expected: ('blocked by lot user', ))]
+fn stranger_cannot_repossess_active_tenant_site_after_grace() {
+    let fixture = expired_site();
+    components::set::<PrepaidAgreement>(
+        agreement_path(fixture.lot, permissions::USE_LOT, fixture.tenant.into()),
+        PrepaidAgreementTrait::new(3600, 100, 20, 100, 300000)
+    );
+    testing::set_block_timestamp(200000);
+    repossess(fixture, fixture.stranger, 'STRANGER');
+}
+
+#[test]
+#[available_gas(50000000)]
+fn stranger_can_repossess_lapsed_tenant_site_after_grace() {
+    let fixture = expired_site();
+    testing::set_block_timestamp(200000);
+    repossess(fixture, fixture.stranger, 'STRANGER');
+}
+
+#[test]
+#[available_gas(50000000)]
+fn stranger_can_repossess_owner_site_without_tenant_after_grace() {
+    let fixture = owner_replacement();
+    testing::set_block_timestamp(200000);
+    repossess(fixture, fixture.stranger, 'STRANGER');
+}
+
+#[test]
+#[available_gas(50000000)]
 #[should_panic(expected: ('E1021: unique not found', 'ENTRYPOINT_FAILED'))]
 fn tenant_cannot_restore_after_owner_repossesses() {
     let fixture = expired_site();

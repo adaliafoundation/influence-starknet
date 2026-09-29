@@ -165,7 +165,7 @@ mod ProcessProductsStart {
         let ast = components::get::<Celestial>(EntityTrait::new(entities::ASTEROID, origin_ast).path())
             .expect(errors::CELESTIAL_NOT_FOUND);
 
-        let origin_to_processor = position::hopper_travel_time(origin_lot, dest_lot, ast.radius, hopper_eff, dist_eff);
+        let origin_to_processor = position::hopper_travel_time(origin_lot, process_lot, ast.radius, hopper_eff, dist_eff);
         let processor_to_dest = position::hopper_travel_time(process_lot, dest_lot, ast.radius, hopper_eff, dist_eff);
 
         // Total processing time

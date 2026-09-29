@@ -66,11 +66,11 @@ mod RepossessBuilding {
 
         let is_asteroid_controller = caller_crew.controls(asteroid);
 
-        if is_asteroid_controller || is_active_tenant {
-            // For the current controller, check if caller is not blocked by lot user
-            assert(!blocked_by_tenant, 'blocked by lot user');
-        } else {
-            // Other crews may only claim planned sites after the construction grace period.
+        // Active tenancy protects the site even after the construction grace period.
+        assert(!blocked_by_tenant, 'blocked by lot user');
+
+        if !is_asteroid_controller && !is_active_tenant {
+            // Without an active tenant, other crews may claim planned sites after the grace period.
             assert(building_data.status == building_statuses::PLANNED, 'not planned status');
             let grace_period = config::get('CONSTRUCTION_GRACE_PERIOD').try_into().unwrap();
             assert(context.now >= building_data.planned_at + grace_period, 'in grace period');

@@ -115,8 +115,8 @@ mod PackageDelivery {
             };
         }
 
-        // Assert crew controls the origin (otherwise they can't get paid)
-        caller_crew.assert_controls(origin);
+        // Operators package on behalf of the origin's controller, who receives payment at acceptance.
+        caller_crew.assert_can(origin, permissions::REMOVE_PRODUCTS);
 
         // Retrieve inventories and contents
         let mut origin_path: Array<felt252> = Default::default();
