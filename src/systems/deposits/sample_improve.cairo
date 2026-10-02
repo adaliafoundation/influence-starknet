@@ -60,7 +60,7 @@ mod SampleDepositImprove {
 
         // Find existing deposit and validate
         let mut deposit_data = components::get::<Deposit>(deposit.path()).expect(errors::DEPOSIT_NOT_FOUND);
-        caller_crew.can(deposit, permissions::USE_DEPOSIT); // must have permission
+        caller_crew.assert_can(deposit, permissions::USE_DEPOSIT);
         assert(deposit_data.status == deposit_statuses::SAMPLED, errors::INCORRECT_STATUS); // must not be used
         let (deposit_ast, deposit_lot) = deposit.to_position();
 

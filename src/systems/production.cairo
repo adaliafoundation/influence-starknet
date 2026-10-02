@@ -112,8 +112,8 @@ mod tests {
     use cubit::f64::FixedTrait;
 
     use influence::components;
-    use influence::common::{config, inventory};
-    use influence::components::{Crew, CrewTrait, Inventory, InventoryTrait, Location, LocationTrait, Station,
+    use influence::common::{config, inventory, position, crew::CrewDetailsTrait, math::RoundedDivTrait};
+    use influence::components::{Celestial, Crew, CrewTrait, ProcessTypeTrait, Inventory, InventoryTrait, Location, LocationTrait, Station,
         dry_dock_type::types as dry_dock_types,
         modifier_type::types as modifier_types,
         process_type::types as process_types,
@@ -326,9 +326,9 @@ mod tests {
         mocks::product_type(product_types::AMMONIA);
         mocks::product_type(product_types::PURE_NITROGEN);
 
-        // Setup station
+        // Keep the crew at the processor so input travel determines positioning time.
         let station = influence::test::mocks::public_habitat(crew, 1);
-        components::set::<Location>(station.path(), LocationTrait::new(EntityTrait::from_position(asteroid.id, 1)));
+        components::set::<Location>(station.path(), LocationTrait::new(EntityTrait::from_position(asteroid.id, 500)));
         components::set::<Location>(crew.path(), LocationTrait::new(station));
 
         // Setup refinery
@@ -345,6 +345,21 @@ mod tests {
         inventory::add_unchecked(ref inventory_data, supplies);
         components::set::<Inventory>(inventory_path, inventory_data);
         mocks::process_type(process_types::AMMONIA_CATALYTIC_CRACKING);
+
+        let now = starknet::get_block_timestamp();
+        let mut details = CrewDetailsTrait::new(crew);
+        let hopper_eff = details.bonus(modifier_types::HOPPER_TRANSPORT_TIME, now);
+        let dist_eff = details.bonus(modifier_types::FREE_TRANSPORT_DISTANCE, now);
+        let radius = components::get::<Celestial>(asteroid.path()).unwrap().radius;
+        let input_time = position::hopper_travel_time(1000, 500, radius, hopper_eff, dist_eff);
+        let output_time = position::hopper_travel_time(500, 1000, radius, hopper_eff, dist_eff);
+        assert(input_time > 0, 'input trip must take time');
+        let process_config = ProcessTypeTrait::by_type(process_types::AMMONIA_CATALYTIC_CRACKING);
+        let (setup_time, variable_time) = time(
+            process_config.setup_time, process_config.recipe_time, process_config.batched,
+            FixedTrait::new_unscaled(1000, false), details.bonus(modifier_types::REFINING_TIME, now)
+        );
+        let start_time = details.component.busy_until(now);
 
         let mut state = ProcessProductsStart::contract_state_for_testing();
         ProcessProductsStart::run(
@@ -373,6 +388,11 @@ mod tests {
         assert(processor_data.status == processor_statuses::RUNNING, 'incorrect status');
         assert(processor_data.running_process == process_types::AMMONIA_CATALYTIC_CRACKING, 'incorrect process');
         assert(processor_data.output_product == product_types::HYDROGEN, 'incorrect output');
+        assert(processor_data.finish_time == start_time + input_time + setup_time + variable_time + output_time,
+            'incorrect transport timing');
+        let crew_data = components::get::<Crew>(crew.path()).unwrap();
+        assert(crew_data.ready_at == start_time + input_time + (setup_time + variable_time).div_ceil(8),
+            'crew must wait for inputs');
         let finish_time = starknet::get_block_timestamp() + processor_data.finish_time + 1;
 
         // Finish processing

@@ -11,6 +11,7 @@ mod UndockShip {
 
     use influence::{components, config};
     use influence::common::{inventory, position, propulsion, crew::CrewDetailsTrait};
+    use influence::common::lot_access::lot_access;
     use influence::config::{entities, errors, permissions};
     use influence::components::{Celestial, CelestialTrait, Control, ControlTrait, Crew, CrewTrait, Dock, DockTrait,
         Inventory, InventoryTrait, Location, LocationTrait, Ship, ShipTrait, ShipTypeTrait, ShipVariantTypeTrait, Unique,
@@ -38,7 +39,7 @@ mod UndockShip {
 
     // Handles:
     // - players to undock their ship from a dock or lot on an asteroid
-    // - the controller of the dock or the lot to evict another player's ship
+    // - any eligible crew to evict a ship without permission to remain
     #[external(v0)]
     fn run(ref self: ContractState, ship: Entity, powered: bool, caller_crew: Entity, context: Context) {
         let ship_crew = ship.controller();
@@ -75,7 +76,7 @@ mod UndockShip {
             assert(prop_inventory.reserved_mass + prop_inventory.reserved_volume == 0, errors::DELIVERY_IN_PROGRESS);
             assert(cargo_inventory.reserved_mass + cargo_inventory.reserved_volume == 0, errors::DELIVERY_IN_PROGRESS);
         } else {
-            // If dock or lot controller is evicting
+            // Permissionless cleanup allows recovery even when the property controller is absent.
             let mut crew_details = CrewDetailsTrait::new(caller_crew);
             crew_details.assert_delegated_to(context.caller);
             crew_details.assert_manned();
@@ -95,7 +96,7 @@ mod UndockShip {
                     errors::ACCESS_DENIED
                 );
             } else if ship_location.label == entities::LOT {
-                assert(!ship_crew.can(ship_location, permissions::USE_LOT), errors::ACCESS_DENIED);
+                assert(!lot_access(ship_crew, ship_location).allowed, errors::ACCESS_DENIED);
             }
         }
 

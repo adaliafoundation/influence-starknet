@@ -78,7 +78,7 @@ fn hopper_travel_time(origin_lot: u64, dest_lot: u64, radius: Fixed, time_eff: F
 
     let instant_distance: u64 = config::get('INSTANT_TRANSPORT_DISTANCE').try_into().unwrap();
     let free_distance = FixedTrait::new(instant_distance, false) * dist_eff;
-    if distance < free_distance { return 0; }
+    if distance <= free_distance { return 0; }
     let accel: u64 = config::get('TIME_ACCELERATION').try_into().unwrap();
     let hopper_speed: u64 = config::get('HOPPER_SPEED').try_into().unwrap();
     return (distance / FixedTrait::new((hopper_speed * accel) / HOUR, false)).ceil().try_into().unwrap();
@@ -191,5 +191,32 @@ mod tests {
 
         time = super::hopper_travel_time(1602262, 1615970, radius, FixedTrait::ONE(), FixedTrait::ONE());
         assert(time == 1009, 'travel time incorrect');
+    }
+
+    #[test]
+    #[available_gas(10000000)]
+    fn test_hopper_travel_time_free_distance_boundary() {
+        helpers::init();
+        mocks::constants();
+        let radius = super::radius(1);
+        let speed_bonus = FixedTrait::new_unscaled(2, false);
+        let distance = super::surface_distance(1602262, 1613996, radius) / speed_bonus;
+
+        // Set the allowance to the exact adjusted distance to avoid geometric rounding ambiguity.
+        config::set('INSTANT_TRANSPORT_DISTANCE', distance.mag.into());
+        assert(super::hopper_travel_time(1602262, 1613996, radius, speed_bonus, FixedTrait::ONE()) == 0,
+            'boundary should be free');
+        assert(super::hopper_travel_time(1602262, 1613996, radius, FixedTrait::ONE(), FixedTrait::ONE()) > 0,
+            'speed must expand free radius');
+
+        config::set('INSTANT_TRANSPORT_DISTANCE', (distance.mag - 1).into());
+        assert(super::hopper_travel_time(1602262, 1613996, radius, speed_bonus, FixedTrait::ONE()) > 0,
+            'outside radius must take time');
+        assert(super::hopper_travel_time(1602262, 1613996, radius, speed_bonus, FixedTrait::new_unscaled(2, false)) == 0,
+            'distance bonus must stack');
+
+        config::set('INSTANT_TRANSPORT_DISTANCE', (distance.mag + 1).into());
+        assert(super::hopper_travel_time(1602262, 1613996, radius, speed_bonus, FixedTrait::ONE()) == 0,
+            'inside radius should be free');
     }
 }

@@ -54,9 +54,9 @@ mod AcceptDelivery {
         let destination = delivery_data.dest;
         let destination_slot = delivery_data.dest_slot;
 
-        // Check that the delivery is in packaged status and the crew controls the destination
+        // Check that the delivery is packaged and the crew can add products to the destination
         assert(delivery_data.status == delivery_statuses::PACKAGED, errors::INCORRECT_STATUS);
-        caller_crew.assert_controls(destination);
+        caller_crew.assert_can(destination, permissions::ADD_PRODUCTS);
 
         // Check that crew is on asteroid
         let (origin_ast, origin_lot) = origin.to_position();
@@ -66,22 +66,25 @@ mod AcceptDelivery {
         assert(crew_details.lot_id() != 0, errors::IN_ORBIT);
 
         // If a private sale is present, ensure it's paid
-        let potential_sale_data = components::get::<PrivateSale>(destination.path());
+        let potential_sale_data = components::get::<PrivateSale>(delivery.path());
 
         if potential_sale_data.is_some() {
             let mut sale_data = potential_sale_data.unwrap();
             assert(sale_data.status == private_sale_statuses::OPEN, errors::INCORRECT_STATUS);
-            let seller_crew = origin.controller();
-            let seller_crew_data = components::get::<Crew>(seller_crew.path()).expect(errors::CREW_NOT_FOUND);
+            if sale_data.amount > 0 {
+                // Proceeds follow the origin's current controller, even if an operator packaged the goods.
+                let seller_crew = origin.controller();
+                let seller_crew_data = components::get::<Crew>(seller_crew.path()).expect(errors::CREW_NOT_FOUND);
 
-            // Confirm receipt on SWAY contract for payment to seller
-            ISwayDispatcher { contract_address: contracts::get('Sway') }.confirm_receipt(
-                context.caller, seller_crew_data.delegated_to, sale_data.amount.into(), delivery.into()
-            );
+                // Inventory permission does not authorize spending: the accepting caller must have paid.
+                ISwayDispatcher { contract_address: contracts::get('Sway') }.confirm_receipt(
+                    context.caller, seller_crew_data.delegated_to, sale_data.amount.into(), delivery.into()
+                );
+            }
 
             // Update sale status
             sale_data.status = private_sale_statuses::CLOSED;
-            components::set::<PrivateSale>(destination.path(), sale_data);
+            components::set::<PrivateSale>(delivery.path(), sale_data);
         }
 
         // Retrieve origin inventory and unreserve space
