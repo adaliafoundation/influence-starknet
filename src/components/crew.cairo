@@ -1,14 +1,11 @@
 use array::{ArrayTrait, Span, SpanTrait};
-use cmp::{min, max};
+use cmp::max;
 use core::starknet::SyscallResultTrait;
 use option::OptionTrait;
 use result::ResultTrait;
 use starknet::{ContractAddress, ContractAddressIntoFelt252, Felt252TryIntoContractAddress, SyscallResult,};
 use starknet::storage_access::{Store, StorageBaseAddress, storage_base_address_const};
 use traits::{Into, TryInto};
-
-use cubit::f64::FixedTrait;
-use cubit::f64::procgen::rand::{derive, fixed_between};
 
 use influence::common::{packed, packed::{pack_u128, unpack_u128, split_felt252}, random};
 use influence::components::{ComponentTrait, resolve};
@@ -81,24 +78,7 @@ impl CrewImpl of CrewTrait {
     }
 
     fn set_action(ref self: Crew, action_type: u64, action_target: Entity, action_time: u64, now: u64) {
-        // 305k targets a random event every 405k seconds with a max 75% chance
-        let new_weight = min(action_time * 10000 / 305000, 10000);
-
-        // Do a dice roll to decide whether to replace based on weight (preference to longer new actions)
-        let seed_new = derive(now.into(), new_weight.into());
-        let seed_old = derive(now.into(), self.action_weight.into());
-        let roll_new = fixed_between(seed_new, FixedTrait::ZERO(), FixedTrait::ONE());
-        let roll_old = fixed_between(seed_old, FixedTrait::ZERO(), FixedTrait::ONE());
-        let mod_new_weight = FixedTrait::new_unscaled(new_weight, false) * roll_new;
-        let mod_old_weight = FixedTrait::new_unscaled(self.action_weight, false) * roll_old;
-
-        if mod_new_weight > mod_old_weight {
-            self.action_type = action_type;
-            self.action_target = action_target;
-            self.action_weight = new_weight;
-            self.action_strategy = random::get_strategy();
-            self.action_round = random::get_current_round(self.action_strategy);
-        }
+        // Retire new random-event candidates while preserving pending actions for resolution.
     }
 
     fn assert_delegated_to(self: Crew, delegate: ContractAddress) {
@@ -257,6 +237,41 @@ mod tests {
     use influence::types::entity::{Entity, EntityTrait};
 
     use super::{Crew, CrewImpl, CrewTrait, StoreCrew};
+
+    #[test]
+    fn test_retired_events_do_not_create_candidate() {
+        let mut crew = CrewTrait::new(starknet::contract_address_const::<'PLAYER'>());
+        crew.add_busy(100, 500);
+        crew.set_action(1, EntityTrait::new(7, 1), 305000, 100);
+
+        assert(crew.ready_at == 600, 'crew scheduling changed');
+        assert(crew.action_type == 0, 'new candidate recorded');
+        assert(crew.action_target == EntityTrait::new(0, 0), 'target changed');
+        assert(crew.action_round == 0, 'round changed');
+        assert(crew.action_weight == 0, 'weight changed');
+        assert(crew.action_strategy == 0, 'strategy changed');
+        crew.assert_ready(600);
+    }
+
+    #[test]
+    fn test_retired_events_preserve_pending_candidate() {
+        let mut crew = CrewTrait::new(starknet::contract_address_const::<'PLAYER'>());
+        crew.action_type = 1;
+        crew.action_target = EntityTrait::new(7, 1);
+        crew.action_round = 2;
+        crew.action_weight = 100;
+        crew.action_strategy = 2;
+
+        crew.add_busy(100, 500);
+        crew.set_action(2, EntityTrait::new(5, 2), 305000, 100);
+
+        assert(crew.ready_at == 600, 'crew scheduling changed');
+        assert(crew.action_type == 1, 'pending type changed');
+        assert(crew.action_target == EntityTrait::new(7, 1), 'pending target changed');
+        assert(crew.action_round == 2, 'pending round changed');
+        assert(crew.action_weight == 100, 'pending weight changed');
+        assert(crew.action_strategy == 2, 'pending strategy changed');
+    }
 
     #[test]
     #[available_gas(500000)]
