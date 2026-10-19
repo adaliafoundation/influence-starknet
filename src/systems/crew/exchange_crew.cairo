@@ -187,7 +187,6 @@ mod ExchangeCrew {
     fn assert_can_move_crewmate(caller: ContractAddress, origin_delegate: bool, dest_delegate: bool, crewmate: u64) {
         let crewmate_address = contracts::get('Crewmate');
         let crewmate_contract = ICrewmateDispatcher { contract_address: crewmate_address };
-        assert(!crewmate_contract.is_restricted(crewmate.into()), 'crewmate restricted');
         let owner = crewmate_contract.owner_of(crewmate.into());
 
         if (!dest_delegate) {
@@ -225,7 +224,7 @@ mod tests {
     use traits::Into;
 
     use influence::{components, config};
-    use influence::components::{BuildingAllowance, Crew, CrewTrait, Location, LocationTrait, StarterPack,
+    use influence::components::{BuildingAllowance, Control, Crew, CrewTrait, Location, LocationTrait, StarterPack,
         crewmate::{classes, collections, Crewmate, CrewmateTrait}};
     use influence::config::entities;
     use influence::contracts::crew::{ICrewDispatcher, ICrewDispatcherTrait};
@@ -321,8 +320,7 @@ mod tests {
 
     #[test]
     #[available_gas(20000000)]
-    #[should_panic(expected: ('crewmate restricted', ))]
-    fn test_rejects_restricted_crewmate_exchange() {
+    fn test_exchange_restricted_crewmate_preserves_nft_restriction() {
         starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
         helpers::init();
         mocks::constants();
@@ -380,6 +378,20 @@ mod tests {
             crew2,
             array![20000, 20001].span(),
             mocks::context('PLAYER')
+        );
+
+        let source = components::get::<Crew>(crew1.path()).unwrap();
+        let destination = components::get::<Crew>(crew2.path()).unwrap();
+        assert(source.roster.len() == 0, 'source roster not empty');
+        assert(destination.roster == array![20000, 20001].span(), 'wrong destination roster');
+        let control = components::get::<Control>(EntityTrait::new(entities::CREWMATE, 20000).path()).unwrap();
+        assert(control.controller == crew2, 'wrong crewmate controller');
+        assert(crewmate_contract.owner_of(crewmate_id) == player, 'NFT owner changed');
+        let restriction = crewmate_contract.restriction(crewmate_id);
+        assert(restriction.restricted_until == 200, 'restriction expiry changed');
+        assert(
+            restriction.restriction_authority == starknet::contract_address_const::<'ADMIN'>(),
+            'restriction authority changed'
         );
     }
 
