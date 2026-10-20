@@ -6,16 +6,13 @@ mod AcceptPrepaidAgreement {
     use starknet::{contract_address_const, ContractAddress};
     use traits::{Into, TryInto};
 
-    use cubit::f64::{FixedTrait, trig::PI, comp};
-    use cubit::f128::{FixedTrait as FixedTrait128};
-
     use influence::{components, config, contracts};
-    use influence::common::{crew::CrewDetailsTrait, math::RoundedDivTrait, position, starter_pack};
+    use influence::common::{crew::CrewDetailsTrait, math::RoundedDivTrait, starter_pack};
     use influence::components::{Building, Celestial, Crew, CrewTrait, Control, ControlTrait, PrepaidPolicy,
         PrepaidPolicyTrait, PrepaidAgreement, PrepaidAgreementTrait, PrepaidAgreementAuction,
         PrepaidAgreementAuctionTrait, Unique};
     use influence::components::agreements::prepaid_auction::modes as auction_modes;
-    use influence::config::{entities, errors, permissions, MAX_ASTEROID_RADIUS};
+    use influence::config::{entities, errors, permissions};
     use influence::contracts::sway::{ISwayDispatcher, ISwayDispatcherTrait};
     use influence::systems::agreements::helpers::{
         agreement_path, auction_price, auction_settings, lease_lapse_amount, lot_use_path, use_lot_path
@@ -231,11 +228,7 @@ mod AcceptPrepaidAgreement {
             .expect(errors::CREW_NOT_FOUND).delegated_to;
 
         // Calculate the required SWAY payment
-        let mut rate: u64 = policy_data.rate;
-
-        if asteroid.id == 1 && target.label == entities::LOT && permission == permissions::USE_LOT {
-            rate = adalia_prime_lease_price(target, policy_data.rate);
-        }
+        let rate = policy_data.rate;
 
         if starter_lot_lease {
             starter_pack::consume_lot_allowance(caller_crew);
@@ -292,56 +285,6 @@ mod AcceptPrepaidAgreement {
         assert(term <= STARTER_LOT_TERM, errors::AGREEMENT_TOO_LONG);
         return true;
     }
-
-    fn adalia_prime_lease_price(lot: Entity, rate: u64) -> u64 {
-        let (_, lot_index) = lot.to_position();
-        let radius = FixedTrait::new(MAX_ASTEROID_RADIUS, false);
-
-        // Adalia Prime colony centers
-        let mut centers: Array<u64> = Default::default();
-        centers.append(457078); // Secondary colony (Ya'axche)
-        centers.append(1096252); // Mining colony (Saline)
-        centers.append(1602262); // Primary colony (Arkos)
-
-        let mut price_mods: Array<u64> = Default::default();
-        price_mods.append(2); // 2x cost reduction around Ya'axche
-        price_mods.append(5); // 5x cost reduction around Saline
-        price_mods.append(1); // No cost reduction around Arkos
-
-        // Calculate smallest distance from various "centers"
-        let mut price_mod = 0;
-        let mut iter = 0;
-        let mut closest = radius * FixedTrait::new(PI, false);
-
-        loop {
-            if iter >= centers.len() { break; }
-            let dist = position::surface_distance(lot_index, *centers.at(iter), radius);
-
-            if dist < closest {
-                closest = dist;
-                price_mod = *price_mods.at(iter);
-            }
-
-            iter += 1;
-        };
-
-        if closest < FixedTrait::new(85899345920, false) {
-            // Within 20 km, no discount
-            return rate.div_ceil(price_mod);
-        } else if closest < FixedTrait::new(214748364800, false) {
-            // From 20km to 50 km, 50% discount
-            return rate.div_ceil(2 * price_mod);
-        } else if closest < FixedTrait::new(322122547200, false) {
-            // From 50km to 75 km, 75% discount
-            return rate.div_ceil(4 * price_mod);
-        } else if closest < FixedTrait::new(429496729600, false) {
-            // From 75km to 100 km, 90% discount
-            return rate.div_ceil(10 * price_mod);
-        } else {
-            return rate / 100;
-        }
-    }
-
 }
 
 // Tests --------------------------------------------------------------------------------------------------------------
@@ -384,14 +327,12 @@ mod tests {
     use super::{AcceptPrepaidAgreement, IAcceptPrepaidAgreementLibraryDispatcher,
         IAcceptPrepaidAgreementDispatcherTrait};
 
-    #[test]
-    #[available_gas(20000000)]
-    fn test_accept_prepaid() {
+    fn assert_accept_prepaid_policy_rate(lot_index: u64) {
         starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
         helpers::init();
         mocks::constants();
         let asteroid = mocks::adalia_prime();
-        let lot = EntityTrait::from_position(asteroid.id, 1595353);
+        let lot = EntityTrait::from_position(asteroid.id, lot_index);
 
         // Deploy SWAY
         let sway_address = helpers::deploy_sway();
@@ -412,7 +353,7 @@ mod tests {
         policy_path.append(asteroid.into());
         policy_path.append(permissions::USE_LOT.into());
         components::set::<PrepaidPolicy>(policy_path.span(), PrepaidPolicy {
-            rate: 986301369,
+            rate: 4000000,
             initial_term: 2628000,
             notice_period: 2628000
         });
@@ -429,7 +370,7 @@ mod tests {
         memo.append(caller_crew.into());
         ISwayDispatcher { contract_address: sway_address }.transfer_with_confirmation(
             starknet::contract_address_const::<'CONTROLLER'>(),
-            719999999370,
+            2920000000,
             memo.hash(),
             starknet::contract_address_const::<'DISPATCHER'>()
         );
@@ -446,11 +387,29 @@ mod tests {
             agreement_path(lot, permissions::USE_LOT, caller_crew.into())
         ).unwrap();
 
-        assert(agreement_data.rate == 986301369, 'invalid rate');
+        assert(agreement_data.rate == 4000000, 'invalid rate');
         assert(agreement_data.initial_term == 2628000, 'invalid initial term');
         assert(agreement_data.notice_period == 2628000, 'invalid notice period');
         assert(agreement_data.start_time == 0, 'invalid start time');
         assert(agreement_data.end_time == 2628000, 'invalid end time');
+    }
+
+    #[test]
+    #[available_gas(20000000)]
+    fn test_accept_prepaid_at_primary_colony_uses_policy_rate() {
+        assert_accept_prepaid_policy_rate(1595353);
+    }
+
+    #[test]
+    #[available_gas(20000000)]
+    fn test_accept_prepaid_at_mining_colony_uses_policy_rate() {
+        assert_accept_prepaid_policy_rate(1096252);
+    }
+
+    #[test]
+    #[available_gas(20000000)]
+    fn test_accept_prepaid_remote_lot_uses_policy_rate() {
+        assert_accept_prepaid_policy_rate(1470059);
     }
 
     #[test]
@@ -1003,34 +962,6 @@ mod tests {
 
         let unique = components::get::<Unique>(use_lot_path(lot)).expect('use lot missing');
         assert(unique.unique == new_crew.into(), 'wrong use lot');
-    }
-
-    #[test]
-    #[available_gas(30000000)]
-    fn test_adalia_prime_rate() {
-        helpers::init();
-        influence::test::mocks::adalia_prime();
-
-        let mut price = AcceptPrepaidAgreement::adalia_prime_lease_price(EntityTrait::from_position(1, 457078), 1000);
-        assert(price == 500, 'invalid price');
-
-        price = AcceptPrepaidAgreement::adalia_prime_lease_price(EntityTrait::from_position(1, 1096252), 1000);
-        assert(price == 200, 'invalid price');
-
-        price = AcceptPrepaidAgreement::adalia_prime_lease_price(EntityTrait::from_position(1, 1598602), 1000);
-        assert(price == 1000, 'invalid price');
-
-        price = AcceptPrepaidAgreement::adalia_prime_lease_price(EntityTrait::from_position(1, 1580548), 1000);
-        assert(price == 500, 'invalid price');
-
-        price = AcceptPrepaidAgreement::adalia_prime_lease_price(EntityTrait::from_position(1, 1547367), 1000);
-        assert(price == 250, 'invalid price');
-
-        price = AcceptPrepaidAgreement::adalia_prime_lease_price(EntityTrait::from_position(1, 1501732), 1000);
-        assert(price == 100, 'invalid price');
-
-        price = AcceptPrepaidAgreement::adalia_prime_lease_price(EntityTrait::from_position(1, 1470059), 1000);
-        assert(price == 10, 'invalid price');
     }
 
     #[test]
