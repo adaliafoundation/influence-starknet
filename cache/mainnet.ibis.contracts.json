@@ -360,15 +360,15 @@
     "declareTxHash": "0xc80437839445eb5fd4da6f906c2c06cfc0f02ec2305325c962d94005f8c590"
   },
   "influence.AcceptPrepaidAgreement.mc6kkastgo4oo": {
-    "declaredAt": 1789549473715,
-    "classHash": "0x742a4c0f981cbd1848eb99ffab94f51d07e3cb0b68c33bc4815512470bb6880",
+    "declaredAt": 1792490471885,
+    "classHash": "0x5a176e1e90c32cfeb0136e605ccc39841ed25e754ea420fc4dace47d6a30533",
     "baseline": {
-      "acceptedClassHash": "0x742a4c0f981cbd1848eb99ffab94f51d07e3cb0b68c33bc4815512470bb6880",
-      "classHash": "0x742a4c0f981cbd1848eb99ffab94f51d07e3cb0b68c33bc4815512470bb6880",
-      "updatedAt": "2026-09-16T09:05:04.767Z",
+      "acceptedClassHash": "0x5a176e1e90c32cfeb0136e605ccc39841ed25e754ea420fc4dace47d6a30533",
+      "classHash": "0x5a176e1e90c32cfeb0136e605ccc39841ed25e754ea420fc4dace47d6a30533",
+      "updatedAt": "2026-10-20T10:01:45.981Z",
       "reason": "updated on-chain class hash"
     },
-    "declareTxHash": "0x14d9ac1c41e26fda11db43ae4a2f346510b246ee423adbf86738f88b08506a1"
+    "declareTxHash": "0x5a916fba63e043ef5e432fc475e8103779f9e259b711c7c1a5690c4359adfe0"
   },
   "influence.ExtendPrepaidAgreement.qmbqifblb5ji6": {
     "declaredAt": 1789549507828,
