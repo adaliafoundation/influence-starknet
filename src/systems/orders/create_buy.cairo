@@ -175,3 +175,227 @@ mod CreateBuyOrder {
         });
     }
 }
+
+// Tests --------------------------------------------------------------------------------------------------------------
+
+// Characterization tests: these pin down the current behavior of the buy order system,
+// including known defects, so that any intentional behavioral change shows up as a
+// deliberate test update rather than a silent regression.
+#[cfg(test)]
+mod tests {
+    use array::{ArrayTrait, Span, SpanTrait};
+    use option::OptionTrait;
+    use traits::{Into, TryInto};
+
+    use cubit::f64::FixedTrait;
+
+    use influence::components;
+    use influence::components::{Exchange, Inventory,
+        crewmate::{classes, crewmate_traits, departments},
+        order::{statuses as order_statuses, types as order_types, Order},
+        product_type::types as product_types};
+    use influence::systems::orders::helpers::{order_path, required_deposit};
+    use influence::types::{Entity, EntityTrait};
+    use influence::test::{helpers, mocks};
+
+    use super::CreateBuyOrder;
+
+    // Fee expectations under the standard modifier configs (see mocks::modifier_type) and a
+    // 1% exchange maker fee:
+    // - a crew without a Merchant crewmate incurs the class affinity penalty
+    //   (1.5 - 0.5^0 = 0.5), halving its fee-reduction efficiency and doubling the fee to 200
+    // - a Merchant crewmate removes the penalty (efficiency 1.0), fee 100
+    // - a Merchant with an Arts & Entertainment title (rank 2, dept eff 500) adds 5%
+    //   efficiency, net 1.05, fee = round(100 / 1.05) = 95
+    // - a Mogul on the market crew enforces 1.16 against maker efficiencies above 1.0:
+    //   net 1.05 - 0.05 * 0.16 = 1.042, fee = round(100 / 1.042) = 96
+
+    fn setup() -> (Entity, Entity, Entity) {
+        starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
+        helpers::init();
+        return mocks::market_order_fixture();
+    }
+
+    fn place_buy_order(
+        ref state: CreateBuyOrder::ContractState, crew: Entity, market: Entity, destination: Entity,
+        amount: u64, maker_fee: u64
+    ) -> u64 {
+        let (deposit, _) = required_deposit(amount, maker_fee, FixedTrait::ONE(), FixedTrait::ONE());
+        CreateBuyOrder::run(
+            ref state,
+            exchange: market,
+            product: product_types::WATER,
+            amount: amount,
+            price: 1,
+            storage: destination,
+            storage_slot: 2,
+            caller_crew: crew,
+            escrow_caller: starknet::contract_address_const::<'BUYER'>(),
+            escrow_type: 1,
+            escrow_token: starknet::contract_address_const::<'SWAY'>(),
+            escrow_amount: deposit.into(),
+            context: mocks::context('ESCROW')
+        );
+        return deposit;
+    }
+
+    fn order_path_of(crew: Entity, market: Entity, destination: Entity) -> Span<felt252> {
+        return order_path(crew, market, order_types::LIMIT_BUY, product_types::WATER, 1, destination, 2);
+    }
+
+    fn reserved_mass_of(destination: Entity) -> u64 {
+        let mut inventory_path: Array<felt252> = Default::default();
+        inventory_path.append(destination.into());
+        inventory_path.append(2.into());
+        return components::get::<Inventory>(inventory_path.span()).unwrap().reserved_mass;
+    }
+
+    #[test]
+    #[available_gas(100000000)]
+    fn test_create_buy_order() {
+        let (crew, market, destination) = setup();
+        let mut state = CreateBuyOrder::contract_state_for_testing();
+
+        // A crew without a Merchant pays double the exchange's 1% maker fee
+        let deposit = place_buy_order(ref state, crew, market, destination, 1000, 200);
+        assert(deposit == 1020, 'wrong deposit');
+
+        let order_data = components::get::<Order>(order_path_of(crew, market, destination)).unwrap();
+        assert(order_data.status == order_statuses::OPEN, 'wrong status');
+        assert(order_data.amount == 1000, 'wrong amount');
+        assert(order_data.maker_fee == 200, 'wrong maker fee');
+        assert(order_data.valid_time == 0, 'wrong valid time');
+
+        // The exchange counts one open order
+        assert(components::get::<Exchange>(market.path()).unwrap().orders == 1, 'wrong order count');
+
+        // The destination inventory reserves space for the purchased products
+        assert(reserved_mass_of(destination) == 1000 * 1000, 'wrong reserved mass');
+    }
+
+    #[test]
+    #[available_gas(100000000)]
+    fn test_redeposit_replaces_order_and_strands_escrow() {
+        let (crew, market, destination) = setup();
+        let mut state = CreateBuyOrder::contract_state_for_testing();
+
+        // Known defect, characterized here: redepositing for an existing open buy order does
+        // not grow it. The order component is keyed by (crew, exchange, type, product,
+        // price, storage, slot), so the second placement replaces the first, while the
+        // escrow pools both deposits under the same order id (caller, token, hook). Fills
+        // and cancels only ever pay out against the replaced amount, so the first deposit
+        // becomes unreachable without a 7-day forced withdrawal that also drains the live
+        // order.
+        let deposit1 = place_buy_order(ref state, crew, market, destination, 1000, 200);
+        let deposit2 = place_buy_order(ref state, crew, market, destination, 500, 200);
+
+        let path = order_path_of(crew, market, destination);
+        let order_data = components::get::<Order>(path).unwrap();
+        assert(order_data.status == order_statuses::OPEN, 'wrong status');
+        assert(order_data.amount == 500, 'order was not replaced');
+
+        // Both placements are counted as separate orders by the exchange
+        assert(components::get::<Exchange>(market.path()).unwrap().orders == 2, 'wrong order count');
+
+        // Reservations accumulate for both placements, but only the replacement order's
+        // amount (500) can ever be unreserved by fills and cancels
+        assert(reserved_mass_of(destination) == 1500 * 1000, 'wrong reserved mass');
+
+        // The pooled escrow deposits exceed the replacement order's required deposit; the
+        // difference is stranded
+        let (required, _) = required_deposit(500, 200, FixedTrait::ONE(), FixedTrait::ONE());
+        assert(deposit1 + deposit2 - required == 1020, 'wrong stranded deposit');
+    }
+
+    #[test]
+    #[available_gas(100000000)]
+    fn test_each_placement_increments_exchange_order_count() {
+        let (crew, market, destination) = setup();
+        let mut state = CreateBuyOrder::contract_state_for_testing();
+
+        // Every placement increments the exchange's order count, even when it replaces an
+        // existing order at the same key rather than adding a new one
+        place_buy_order(ref state, crew, market, destination, 1000, 200);
+        assert(components::get::<Exchange>(market.path()).unwrap().orders == 1, 'wrong order count');
+
+        place_buy_order(ref state, crew, market, destination, 500, 200);
+        assert(components::get::<Exchange>(market.path()).unwrap().orders == 2, 'wrong order count');
+
+        place_buy_order(ref state, crew, market, destination, 250, 200);
+        assert(components::get::<Exchange>(market.path()).unwrap().orders == 3, 'wrong order count');
+
+        // Despite the count of 3, only a single order component exists, holding only the
+        // last placement's amount
+        let order_data = components::get::<Order>(order_path_of(crew, market, destination)).unwrap();
+        assert(order_data.amount == 250, 'order was not replaced');
+    }
+
+    #[test]
+    #[available_gas(100000000)]
+    fn test_merchant_crew_pays_exchange_fee() {
+        let (crew, market, destination) = setup();
+        let mut state = CreateBuyOrder::contract_state_for_testing();
+
+        // A Merchant crewmate negates the class affinity penalty
+        mocks::crewmate_with(1, classes::MERCHANT, 0, array![].span());
+
+        let deposit = place_buy_order(ref state, crew, market, destination, 1000, 100);
+        assert(deposit == 1010, 'wrong deposit');
+
+        let order_data = components::get::<Order>(order_path_of(crew, market, destination)).unwrap();
+        assert(order_data.maker_fee == 100, 'wrong maker fee');
+    }
+
+    #[test]
+    #[available_gas(100000000)]
+    fn test_arts_merchant_gets_discounted_fee() {
+        let (crew, market, destination) = setup();
+        let mut state = CreateBuyOrder::contract_state_for_testing();
+
+        // A Merchant with an Arts & Entertainment title adds 5% fee-reduction efficiency;
+        // net 1.05 -> fee = round(100 / 1.05) = 95
+        mocks::crewmate_with(1, classes::MERCHANT, departments::ARTS_ENTERTAINMENT, array![].span());
+
+        let deposit = place_buy_order(ref state, crew, market, destination, 10000, 95);
+        assert(deposit == 10095, 'wrong deposit');
+
+        let order_data = components::get::<Order>(order_path_of(crew, market, destination)).unwrap();
+        assert(order_data.maker_fee == 95, 'wrong maker fee');
+    }
+
+    #[test]
+    #[available_gas(100000000)]
+    fn test_mogul_enforcement_ignored_at_par() {
+        let (crew, market, destination) = setup();
+        let mut state = CreateBuyOrder::contract_state_for_testing();
+
+        // A Mogul on the market crew raises fee enforcement to 1.16, but enforcement only
+        // bites maker efficiencies above 1.0; a plain Merchant crew still pays the
+        // exchange's maker fee
+        mocks::crewmate_with(2, classes::PILOT, 0, array![crewmate_traits::MOGUL].span());
+        mocks::crewmate_with(1, classes::MERCHANT, 0, array![].span());
+
+        place_buy_order(ref state, crew, market, destination, 1000, 100);
+
+        let order_data = components::get::<Order>(order_path_of(crew, market, destination)).unwrap();
+        assert(order_data.maker_fee == 100, 'wrong maker fee');
+    }
+
+    #[test]
+    #[available_gas(100000000)]
+    fn test_mogul_enforcement_trims_discount() {
+        let (crew, market, destination) = setup();
+        let mut state = CreateBuyOrder::contract_state_for_testing();
+
+        // An Arts Merchant (efficiency 1.05) against a Mogul market (enforcement 1.16):
+        // net 1.05 - 0.05 * 0.16 = 1.042 -> fee = round(100 / 1.042) = 96
+        mocks::crewmate_with(2, classes::PILOT, 0, array![crewmate_traits::MOGUL].span());
+        mocks::crewmate_with(1, classes::MERCHANT, departments::ARTS_ENTERTAINMENT, array![].span());
+
+        let deposit = place_buy_order(ref state, crew, market, destination, 10000, 96);
+        assert(deposit == 10096, 'wrong deposit');
+
+        let order_data = components::get::<Order>(order_path_of(crew, market, destination)).unwrap();
+        assert(order_data.maker_fee == 96, 'wrong maker fee');
+    }
+}

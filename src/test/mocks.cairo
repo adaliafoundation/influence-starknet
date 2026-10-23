@@ -1,18 +1,18 @@
-use array::ArrayTrait;
+use array::{ArrayTrait, Span, SpanTrait};
 use option::OptionTrait;
-use starknet::{contract_address_try_from_felt252, ContractAddress};
+use starknet::{contract_address_const, contract_address_try_from_felt252, ContractAddress};
 use starknet::storage_access::{StorageBaseAddress, storage_base_address_const};
 use traits::Into;
 
 use cubit::{f64, f128};
 
-use influence::{components, config};
+use influence::{components, config, contracts};
 use influence::components::{Crew, CrewTrait, Crewmate, CrewmateTrait, Control, ControlTrait, Dock, DockTrait, DryDock,
-    DryDockTrait, Exchange, ExchangeTrait, PublicPolicy, Station, StationTrait,
+    DryDockTrait, Exchange, ExchangeTrait, Location, LocationTrait, PublicPolicy, Station, StationTrait,
     building::{statuses as building_statuses, Building, BuildingTrait},
     building_type::{types as building_types, BuildingType},
     celestial::{types as celestial_types, statuses as celestial_statuses, Celestial, CelestialTrait},
-    crewmate::{classes, crewmate_traits, departments},
+    crewmate::{classes, collections, crewmate_traits, departments},
     deposit::{statuses as deposit_statuses, Deposit, DepositTrait},
     dock_type::{types as dock_types, DockType},
     dry_dock_type::{types as dry_dock_types, DryDockType},
@@ -93,6 +93,68 @@ fn delegated_crew(id: u64, address: felt252) -> Entity {
     components::set::<Inventory>(inv_path.span(), inv_data);
 
     return crew;
+}
+
+// Overwrites the crewmate of an existing crew (e.g. created by delegated_crew) with a given
+// class, title, and impactful traits. The crewmate is an Adalian (collection 4), so the
+// Arvad Specialist rank bonus does not apply to department efficiencies.
+fn crewmate_with(id: u64, class: u64, title: u64, impactful: Span<u64>) {
+    let crewmate = EntityTrait::new(entities::CREWMATE, id);
+    let mut crewmate_data = CrewmateTrait::new(collections::ADALIAN);
+    crewmate_data.class = class;
+    crewmate_data.title = title;
+    crewmate_data.status = 1;
+    crewmate_data.impactful = impactful;
+    components::set::<Crewmate>(crewmate.path(), crewmate_data);
+}
+
+// A ready-made marketplace order fixture: seeds game configs, registers the Sway and Escrow
+// contract addresses, and creates a buyer crew (delegated to 'BUYER') located on the
+// marketplace's lot together with a destination warehouse, so that no travel time is
+// required to place orders. Marketplace fee modifiers use the standard game configs: a
+// non-Merchant crew incurs the class affinity penalty and pays double the exchange's maker
+// fee. Crew composition can be overridden after setup with crewmate_with. Returns
+// (crew, market, destination).
+fn market_order_fixture() -> (Entity, Entity, Entity) {
+    constants();
+
+    // "Deploy" Sway and Escrow
+    contracts::set('Sway', contract_address_const::<'SWAY'>());
+    contracts::set('Escrow', contract_address_const::<'ESCROW'>());
+
+    product_type(product_types::WATER);
+    station_type(station_types::STANDARD_QUARTERS);
+    modifier_type(modifier_types::INVENTORY_MASS_CAPACITY);
+    modifier_type(modifier_types::INVENTORY_VOLUME_CAPACITY);
+    modifier_type(modifier_types::HOPPER_TRANSPORT_TIME);
+    modifier_type(modifier_types::FREE_TRANSPORT_DISTANCE);
+    modifier_type(modifier_types::MARKETPLACE_FEE_ENFORCEMENT);
+    modifier_type(modifier_types::MARKETPLACE_FEE_REDUCTION);
+
+    // Create entities
+    let asteroid = asteroid();
+    let crew = delegated_crew(1, 'BUYER');
+    let market_crew = delegated_crew(2, 'MARKET');
+
+    // Crew sits on the marketplace's lot so that no travel time is required for orders
+    components::set::<Location>(
+        crew.path(), LocationTrait::new(EntityTrait::from_position(asteroid.id, 500))
+    );
+    components::set::<Location>(
+        market_crew.path(), LocationTrait::new(EntityTrait::from_position(asteroid.id, 500))
+    );
+
+    // Setup marketplace
+    let market = public_marketplace(market_crew, 1);
+    components::set::<Location>(market.path(), LocationTrait::new(EntityTrait::from_position(asteroid.id, 500)));
+
+    // Setup warehouse to receive purchased products
+    let destination = public_warehouse(crew, 2);
+    components::set::<Location>(
+        destination.path(), LocationTrait::new(EntityTrait::from_position(asteroid.id, 500))
+    );
+
+    return (crew, market, destination);
 }
 
 fn public_habitat(crew: Entity, id: u64) -> Entity {
