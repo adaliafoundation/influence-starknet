@@ -132,3 +132,4 @@ const AGREEMENT_EXPIRED: felt252 = 'E6053: agreement expired';
 const NO_PRODUCTS: felt252 = 'E6054: no products';
 const AUCTION_INACTIVE: felt252 = 'E6055: auction inactive';
 const AUCTION_ACTIVE: felt252 = 'E6056: auction active';
+const ORDER_ALREADY_EXISTS: felt252 = 'E6057: order already exists';

@@ -87,6 +87,19 @@ mod CreateBuyOrder {
 
         caller_crew.assert_can(exchange, permissions::LIMIT_BUY);
 
+        // Check that no open order already exists at this order path. Orders cannot be
+        // modified or grown after placement: the escrow pools deposits by order id, so a
+        // replacement would strand the existing order's escrowed deposit
+        let order_path = order_path(
+            caller_crew, exchange, order_types::LIMIT_BUY, product, price, storage, storage_slot
+        );
+        match components::get::<Order>(order_path) {
+            Option::Some(existing_order_data) => {
+                assert(existing_order_data.status != order_statuses::OPEN, errors::ORDER_ALREADY_EXISTS);
+            },
+            Option::None(_) => ()
+        };
+
         // Check that the storage exists and is ready to send
         if storage.label == entities::BUILDING {
             components::get::<Building>(storage.path()).expect(errors::BUILDING_NOT_FOUND).assert_operational();
@@ -150,10 +163,6 @@ mod CreateBuyOrder {
         }
 
         // Create order component
-        let order_path = order_path(
-            caller_crew, exchange, order_types::LIMIT_BUY, product, price, storage, storage_slot
-        );
-
         components::set::<Order>(order_path, Order {
             status: order_statuses::OPEN,
             amount: amount,
@@ -189,13 +198,14 @@ mod tests {
 
     use cubit::f64::FixedTrait;
 
+    use influence::common::inventory;
     use influence::components;
     use influence::components::{Exchange, Inventory,
         crewmate::{classes, crewmate_traits, departments},
         order::{statuses as order_statuses, types as order_types, Order},
         product_type::types as product_types};
     use influence::systems::orders::helpers::{order_path, required_deposit};
-    use influence::types::{Entity, EntityTrait};
+    use influence::types::{Entity, EntityTrait, InventoryItem, InventoryItemTrait};
     use influence::test::{helpers, mocks};
 
     use super::CreateBuyOrder;
@@ -274,60 +284,59 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected: ('E6057: order already exists', ))]
     #[available_gas(100000000)]
-    fn test_redeposit_replaces_order_and_strands_escrow() {
+    fn test_redeposit_rejects_existing_open_order() {
         let (crew, market, destination) = setup();
         let mut state = CreateBuyOrder::contract_state_for_testing();
 
-        // Known defect, characterized here: redepositing for an existing open buy order does
-        // not grow it. The order component is keyed by (crew, exchange, type, product,
-        // price, storage, slot), so the second placement replaces the first, while the
-        // escrow pools both deposits under the same order id (caller, token, hook). Fills
-        // and cancels only ever pay out against the replaced amount, so the first deposit
-        // becomes unreachable without a 7-day forced withdrawal that also drains the live
-        // order.
-        let deposit1 = place_buy_order(ref state, crew, market, destination, 1000, 200);
-        let deposit2 = place_buy_order(ref state, crew, market, destination, 500, 200);
-
-        let path = order_path_of(crew, market, destination);
-        let order_data = components::get::<Order>(path).unwrap();
-        assert(order_data.status == order_statuses::OPEN, 'wrong status');
-        assert(order_data.amount == 500, 'order was not replaced');
-
-        // Both placements are counted as separate orders by the exchange
-        assert(components::get::<Exchange>(market.path()).unwrap().orders == 2, 'wrong order count');
-
-        // Reservations accumulate for both placements, but only the replacement order's
-        // amount (500) can ever be unreserved by fills and cancels
-        assert(reserved_mass_of(destination) == 1500 * 1000, 'wrong reserved mass');
-
-        // The pooled escrow deposits exceed the replacement order's required deposit; the
-        // difference is stranded
-        let (required, _) = required_deposit(500, 200, FixedTrait::ONE(), FixedTrait::ONE());
-        assert(deposit1 + deposit2 - required == 1020, 'wrong stranded deposit');
+        // Depositing for an existing open buy order would pool escrow under the same order
+        // id (caller, token, hook) while overwriting the order component, stranding the
+        // first deposit; the second placement is rejected instead. Orders cannot be grown
+        // or modified after placement: cancel and re-list with different parameters
+        place_buy_order(ref state, crew, market, destination, 1000, 200);
+        place_buy_order(ref state, crew, market, destination, 500, 200);
     }
 
     #[test]
     #[available_gas(100000000)]
-    fn test_each_placement_increments_exchange_order_count() {
+    fn test_relist_after_settled_order() {
         let (crew, market, destination) = setup();
         let mut state = CreateBuyOrder::contract_state_for_testing();
 
-        // Every placement increments the exchange's order count, even when it replaces an
-        // existing order at the same key rather than adding a new one
+        // Place an order and simulate it being fully filled: the order is marked FILLED,
+        // the exchange order count is decremented, and the destination reservation is
+        // released, as FillBuyOrder does
         place_buy_order(ref state, crew, market, destination, 1000, 200);
+        let path = order_path_of(crew, market, destination);
+        let mut order_data = components::get::<Order>(path).unwrap();
+        order_data.status = order_statuses::FILLED;
+        components::set::<Order>(path, order_data);
+        let mut exchange_data = components::get::<Exchange>(market.path()).unwrap();
+        exchange_data.orders = 0;
+        components::set::<Exchange>(market.path(), exchange_data);
+        let mut destination_path: Array<felt252> = Default::default();
+        destination_path.append(destination.into());
+        destination_path.append(2.into());
+        let mut destination_data = components::get::<Inventory>(destination_path.span()).unwrap();
+        let mut filled_products: Array<InventoryItem> = Default::default();
+        filled_products.append(InventoryItemTrait::new(product_types::WATER, 1000));
+        inventory::unreserve(ref destination_data, filled_products.span());
+        components::set::<Inventory>(destination_path.span(), destination_data);
+
+        // A settled order at the same path does not block a fresh listing; only open
+        // orders do
+        place_buy_order(ref state, crew, market, destination, 500, 200);
+
+        let order_data = components::get::<Order>(path).unwrap();
+        assert(order_data.status == order_statuses::OPEN, 'wrong status');
+        assert(order_data.amount == 500, 'wrong amount');
+
+        // The fresh listing is counted as a new open order
         assert(components::get::<Exchange>(market.path()).unwrap().orders == 1, 'wrong order count');
 
-        place_buy_order(ref state, crew, market, destination, 500, 200);
-        assert(components::get::<Exchange>(market.path()).unwrap().orders == 2, 'wrong order count');
-
-        place_buy_order(ref state, crew, market, destination, 250, 200);
-        assert(components::get::<Exchange>(market.path()).unwrap().orders == 3, 'wrong order count');
-
-        // Despite the count of 3, only a single order component exists, holding only the
-        // last placement's amount
-        let order_data = components::get::<Order>(order_path_of(crew, market, destination)).unwrap();
-        assert(order_data.amount == 250, 'order was not replaced');
+        // The destination reservation covers the fresh listing only
+        assert(reserved_mass_of(destination) == 500 * 1000, 'wrong reserved mass');
     }
 
     #[test]
