@@ -1,12 +1,14 @@
 use array::{ArrayTrait, Span, SpanTrait};
 use option::OptionTrait;
-use starknet::{contract_address_const, contract_address_try_from_felt252, ContractAddress};
+use starknet::{contract_address_const, contract_address_try_from_felt252, deploy_syscall, ContractAddress,
+    SyscallResultTrait};
 use starknet::storage_access::{StorageBaseAddress, storage_base_address_const};
-use traits::Into;
+use traits::{Into, TryInto};
 
 use cubit::{f64, f128};
 
 use influence::{components, config, contracts};
+use influence::common::inventory;
 use influence::components::{Crew, CrewTrait, Crewmate, CrewmateTrait, Control, ControlTrait, Dock, DockTrait, DryDock,
     DryDockTrait, Exchange, ExchangeTrait, Location, LocationTrait, PublicPolicy, Station, StationTrait,
     building::{statuses as building_statuses, Building, BuildingTrait},
@@ -29,7 +31,10 @@ use influence::components::{Crew, CrewTrait, Crewmate, CrewmateTrait, Control, C
     ship_variant_type::{types as ship_variant_types, ShipVariantType},
     station_type::{types as station_types, StationType}};
 use influence::config::{entities, permissions};
+use influence::contracts::dispatcher::Dispatcher;
+use influence::contracts::escrow::{ERC20, Escrow};
 use influence::systems::policies::helpers::policy_path;
+use influence::test::helpers;
 use influence::types::{Context, Entity, EntityTrait, InventoryItem, InventoryItemTrait};
 
 fn context(caller: felt252) -> Context {
@@ -155,6 +160,58 @@ fn market_order_fixture() -> (Entity, Entity, Entity) {
     );
 
     return (crew, market, destination);
+}
+
+// A real escrow and dispatcher with the buy-order systems registered, plus the shared
+// marketplace entities used by end-to-end buy-order tests.
+fn market_order_escrow_fixture(
+    create_buy_order_system: felt252, fill_buy_order_system: felt252
+) -> (ContractAddress, ContractAddress, ContractAddress, Entity, Entity, Entity) {
+    starknet::testing::set_contract_address(contract_address_const::<'DEPLOYER'>());
+
+    let dispatcher_constructor = array!['ADMIN'];
+    let (dispatcher_address, _) = deploy_syscall(
+        Dispatcher::TEST_CLASS_HASH.try_into().unwrap(), 0, dispatcher_constructor.span(), false
+    ).unwrap_syscall();
+
+    let empty_calldata: Array<felt252> = Default::default();
+    let (escrow_address, _) = deploy_syscall(
+        Escrow::TEST_CLASS_HASH.try_into().unwrap(), 0, empty_calldata.span(), false
+    ).unwrap_syscall();
+    let (sway_address, _) = deploy_syscall(
+        ERC20::TEST_CLASS_HASH.try_into().unwrap(), 0, empty_calldata.span(), false
+    ).unwrap_syscall();
+
+    starknet::testing::set_contract_address(dispatcher_address);
+    helpers::init();
+    let (crew, market, destination) = market_order_fixture();
+    contracts::set('Sway', sway_address);
+    contracts::set('Escrow', escrow_address);
+    helpers::deploy_system('CreateBuyOrder', create_buy_order_system);
+    helpers::deploy_system('FillBuyOrder', fill_buy_order_system);
+
+    let mut exchange_data = components::get::<Exchange>(market.path()).unwrap();
+    exchange_data.taker_fee = 0;
+    components::set::<Exchange>(market.path(), exchange_data);
+
+    return (dispatcher_address, escrow_address, sway_address, crew, market, destination);
+}
+
+fn market_order_seller_fixture(market: Entity, amount: u64) -> (Entity, Entity) {
+    let (asteroid_id, market_lot) = market.to_position();
+    let seller_crew = delegated_crew(3, 'SELLER');
+    let location = EntityTrait::from_position(asteroid_id, market_lot);
+    components::set::<Location>(seller_crew.path(), LocationTrait::new(location));
+
+    let source = public_warehouse(seller_crew, 3);
+    components::set::<Location>(source.path(), LocationTrait::new(location));
+    let source_path = array![source.into(), 2].span();
+    let mut source_data = components::get::<Inventory>(source_path).unwrap();
+    let supplies = array![InventoryItemTrait::new(product_types::WATER, amount)].span();
+    inventory::add_unchecked(ref source_data, supplies);
+    components::set::<Inventory>(source_path, source_data);
+
+    return (seller_crew, source);
 }
 
 fn public_habitat(crew: Entity, id: u64) -> Entity {
