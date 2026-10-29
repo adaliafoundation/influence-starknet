@@ -158,7 +158,7 @@ fn mission_spike_real_sway_receipt() { consume_receipt_twice(false); }
 
 #[test]
 #[available_gas(30000000)]
-#[should_panic(expected: ('Result::unwrap failed.',))]
+#[should_panic(expected: ('SWAY: invalid receipt', 'ENTRYPOINT_FAILED', 'ENTRYPOINT_FAILED', 'ENTRYPOINT_FAILED'))]
 fn mission_spike_real_sway_receipt_replay() { consume_receipt_twice(true); }
 
 use cubit::f64::FixedTrait;

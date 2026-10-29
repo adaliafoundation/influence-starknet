@@ -4,6 +4,9 @@
   "description": "",
   "main": "index.js",
   "type": "module",
+  "engines": {
+    "node": "^22.23.4"
+  },
   "scripts": {
     "build": "scarb build",
     "format": "cairo-format ./src -r",
@@ -13,7 +16,10 @@
     "postinstall": "git submodule update --init --recursive",
     "update-submodules": "git submodule update --remote",
     "manager": "node ./bin/manager.js",
-    "devnet": "starknet-devnet --timeout 5000 --seed 12345 --initial-balance 10000000000000000000000000 --dump-path ./test/seeds/devnet.dump --dump-on exit"
+    "devnet": "starknet-devnet --timeout 5000 --seed 12345 --initial-balance 10000000000000000000000000 --dump-path ./test/seeds/devnet.dump --dump-on exit",
+    "export-missions": "node bin/exportMissionArtifacts.js",
+    "test-missions-runtime": "node --test test/missions/*.test.js",
+    "build-mission-fixtures": "node test/missions/build-fixtures.js"
   },
   "author": "Unstoppable Games, Inc.",
   "license": "CC-BY-NC-4.0",

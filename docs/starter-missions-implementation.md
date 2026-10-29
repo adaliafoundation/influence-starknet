@@ -1,6 +1,6 @@
 # Starter missions implementation
 
-The reusable campaign framework and the eight agreed starter missions are implemented. Colonization and player-authored contract publishing remain deferred. No live-network deployment or campaign activation was performed.
+The reusable campaign framework and the eight agreed starter missions are implemented. Colonization now shares the mission observer; player-authored contract publishing remains deferred. See [mission observer integration](mission-observer-integration.md) for the current SDK/server API and deployment instructions. No live-network deployment or campaign activation was performed.
 
 ## Execution model
 
@@ -10,13 +10,13 @@ The public systems are:
 
 - `RegisterMissionCampaign(campaign, implementation, mission_count)` — administrator only; an existing campaign cannot be redefined.
 - `AcceptMission(assignment)` — implementation validates admission and prerequisites; the framework marks acceptance and evaluates preserved evidence.
-- `MissionAction(assignment, action, arguments)` — executes exactly one allowlisted gameplay action inside the registered implementation, then evaluates campaign progress.
+- `MissionObserver` — records evidence before and after a native gameplay action. The account arms observation on the Dispatcher and finalizes it within the same multicall; no action-executing mission wrapper remains.
 - `MissionValidate(assignment, arguments)` — evaluates preserved evidence. The starter template accepts either empty arguments or a bound, completed Delivery entity.
 - `ClaimMissionReward(assignment)` — settles a completed entitlement once, paying the template-selected recipient.
 - `ReadMissionState(assignment, slot)` — returns accepted/completed/paid and one template-defined evidence slot.
 - `ConfigureStarterMissions(campaign, crew_cutoff)` — administrator-only, one-time activation of an eight-mission campaign.
 
-All run through existing `Dispatcher.run_system`. `MissionAction` is a registered system, not an external self-call to the Dispatcher. The original authenticated Context is appended once to the child gameplay calldata. Its caller and storage address remain intact. Clients exclude caller crew and Context from ordinary wrapped arguments; the template supplies them. `FillSellOrder` is the exception: arguments include the buyer crew as a final Entity which must match the assignment subject. This adapter tracks purchases for Warehouse storage only.
+Acceptance, validation, and claims run through `Dispatcher.run_system`. Native gameplay calls keep their original calldata, including the actual caller crew. `begin_observation` and `end_observation` surround those calls in the account multicall; the Dispatcher invokes the registered observer around the successful native execution. The shared observer selects the active starter assignment from the actual crew, rather than accepting a client-selected assignment. `FillSellOrder` tracks purchases for Warehouse storage only; colonization independently credits marketplace use.
 
 The implementation interface is `evaluate(assignment, operation, action, arguments, context) -> (beneficiary, reward_micro_sway)`. Operations are accept (0), action (1), validate (2), and quote claim (3). The framework owns lifecycle, lock, and payment; the trusted implementation owns eligibility, action adapters, prerequisites, evidence, and reward policy. A separate asteroid-subject test implementation exercises the same framework without starter branches.
 
@@ -49,7 +49,7 @@ Crews qualify when their ID is strictly greater than the configured cutoff and t
 
 Acceptance alone does not invalidate either crew in a clean-to-clean exchange. First campaign participation is recorded when capturing action evidence. Once a participating crew changes membership through exchange, it becomes invalid, and outgoing members contaminate the recipient. Existing invalid and cutoff-excluded crews contaminate recipients too. Reciprocal swaps propagate invalidity in both directions in that same transaction. Emptying/refilling a crew never resets flags. Fresh Adalian recruitment and reorder are allowed; Arvadian initialization invalidates starter eligibility.
 
-The hooks live in ordinary `ExchangeCrew` and `InitializeArvadian`, so bypassing the mission wrapper does not bypass contamination. They are inactive until starter missions are configured. Crew NFT ownership/delegation changes preserve the crew-bound assignment.
+The hooks live in ordinary `ExchangeCrew` and `InitializeArvadian`, so omitting mission observation does not bypass contamination. They are inactive until starter missions are configured. Crew NFT ownership/delegation changes preserve the crew-bound assignment.
 
 Completion and payout are separate. A completed entitlement survives later invalidation and pays the current crew delegate. Claims mark paid before token transfer, assert transfer success, and use a reentrancy lock; a revert rolls the transaction back. Treasury funding is required, but an empty treasury does not prevent gameplay completion. Clients may batch completion, acceptance, and claims where prerequisites allow.
 
@@ -142,7 +142,7 @@ node --test test/missions/runtime.test.js
 
 Cairo coverage includes all eight missions with real gameplay systems, all five SDK recipe pairs, exact payout totals, early evidence, sample/mass/batch boundaries, reversed routes, pending vs received goods, actual purchase receipts, rejection of seller assignments, exclusion of trade and purchased-delivery capstone credit, construction consumption, caller admission, immutable registration, claim replay, wrapper reentry, packed-page/subject/campaign isolation, ordinary crew exchange, contamination propagation, and unwrapped restart attacks.
 
-The fresh-devnet test declares and deploys the real contracts and checks submitted reverting transactions, shared gameplay rollback, lock recovery, unfunded payout rollback, delegate payout, and claim replay. It uses its own local port and does not depend on the legacy devnet snapshot. The existing Dispatcher masks nested panic messages with `Result.unwrap`; the runtime checks use reverted receipts, persisted state, and successful recovery transactions rather than claiming to distinguish those masked messages.
+The fresh-devnet test declares and deploys the real contracts and checks submitted reverting transactions, shared gameplay rollback, lock recovery, unfunded payout rollback, delegate payout, and claim replay. It uses its own local port and does not depend on the legacy devnet snapshot. The runtime checks use submitted reverted receipts, persisted state, and successful recovery transactions.
 
 The repository's existing `npm run test-integration` was also attempted: its cached legacy contracts are absent on the devnet it starts, and its setup fails before the legacy assertions. This is separate from the fresh-deployment mission test.
 
@@ -164,7 +164,7 @@ In addition to `ComponentUpdated`, the framework emits these events from the Dis
 | `MissionCompleted` | `campaign: felt252`, `subject: Entity`, `mission: u32` |
 | `MissionRewardClaimed` | `campaign: felt252`, `subject: Entity`, `mission: u32`, `recipient: ContractAddress`, `amount: u128` |
 
-Their ABI definitions live in `MissionAction`. The event name selector is the sole event key; `Entity` serializes as its label and ID. Mission indices are zero-based, and reward amounts use SWAY's smallest units.
+Their ABI definitions live in `ClaimMissionReward`. The event name selector is the sole event key; `Entity` serializes as its label and ID. Mission indices are zero-based, and reward amounts use SWAY's smallest units.
 
 Acceptance and completion events are emitted only when their corresponding lifecycle bit changes. Acceptance can immediately emit completion when prior campaign evidence already satisfies the requirement. Claims emit after a successful SWAY transfer, recording the actual recipient. Reverted transactions retain none of these events. Existing component and native gameplay events remain available; no additional persistent storage is introduced.
 
@@ -182,3 +182,14 @@ For a deployment activated before this fix, do not activate again. Either backfi
 The pending production fingerprint is Poseidon over the serialized `Processor` component only. Its `running_process` field already identifies the process type. The recipe definition (`ProcessType`) is not included, so editing it does not by itself invalidate an existing mission-bound run. Native gameplay and mission output evaluation continue to use the applicable recipe configuration; this does not bypass native completion checks.
 
 Construction, sampling, extraction, and delivery fingerprints likewise contain instance/run data, not entire type definitions. SDK/indexer fingerprint calculations must use the same serialized component fields as the deployed campaign implementation. This change requires a new campaign implementation hash; an already registered campaign remains pinned to its previous hash until explicitly updated. No pending fingerprint migration is needed when none exist.
+
+
+### Explicit observer candidates
+
+The current observer accepts explicit mission assignments from the SDK, grouped by campaign
+and subject. Only selected missions are validated after shared evidence recording. Acceptance
+and MissionValidate also validate the requested mission rather than scanning all eight.
+Evidence keys, pending fingerprints, and lifecycle bits are unchanged. See
+[mission-observer-integration.md](mission-observer-integration.md) for the candidate wire
+format and the admin-only implementation upgrade procedure. No player progress migration
+or re-enrollment is required.
