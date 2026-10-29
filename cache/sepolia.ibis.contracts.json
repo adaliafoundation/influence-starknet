@@ -161,9 +161,9 @@
     "declaredAt": 1792486375038,
     "classHash": "0x5a176e1e90c32cfeb0136e605ccc39841ed25e754ea420fc4dace47d6a30533",
     "baseline": {
-      "acceptedClassHash": "0x742a4c0f981cbd1848eb99ffab94f51d07e3cb0b68c33bc4815512470bb6880",
-      "classHash": "0x742a4c0f981cbd1848eb99ffab94f51d07e3cb0b68c33bc4815512470bb6880",
-      "updatedAt": "2026-10-22T09:36:32.085Z",
+      "acceptedClassHash": "0x5a176e1e90c32cfeb0136e605ccc39841ed25e754ea420fc4dace47d6a30533",
+      "classHash": "0x5a176e1e90c32cfeb0136e605ccc39841ed25e754ea420fc4dace47d6a30533",
+      "updatedAt": "2026-10-29T11:25:17.559Z",
       "reason": "updated on-chain class hash"
     },
     "declareTxHash": "0x20f17d5a1ce59a3143205a5f18a910e12041722382fc8bde40f4d29b1f53cb0"
