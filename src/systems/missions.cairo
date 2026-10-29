@@ -1,3 +1,5 @@
+mod colonization;
+mod observer;
 mod starter;
 
 #[starknet::contract]
@@ -28,6 +30,36 @@ mod RegisterMissionCampaign {
     }
 }
 
+// Updates a pinned implementation without touching mission IDs or player progress.
+#[starknet::contract]
+mod UpgradeMissionCampaign {
+    use array::ArrayTrait;
+    use traits::Into;
+    use starknet::ClassHash;
+    use influence::{systems, common::missions};
+    use influence::types::{Context, ContextTrait};
+    #[storage]
+    struct Storage {}
+    #[external(v0)]
+    fn run(
+        ref self: ContractState,
+        campaign: felt252,
+        expected: ClassHash,
+        replacement_name: felt252,
+        context: Context
+    ) {
+        assert(context.is_admin(), 'only admin');
+        let replacement = systems::get(replacement_name);
+        assert(
+            expected.into() != 0 && replacement.into() != 0 && expected != replacement,
+            'invalid replacement'
+        );
+        let path = array!['Definition', campaign].span();
+        assert(missions::read(path) == expected.into(), 'wrong old implementation');
+        missions::write(path, replacement.into());
+    }
+}
+
 #[starknet::contract]
 mod AcceptMission {
     use influence::common::missions;
@@ -42,7 +74,22 @@ mod AcceptMission {
 }
 
 #[starknet::contract]
-mod MissionAction {
+mod MissionValidate {
+    use influence::common::missions;
+    use influence::common::missions::Assignment;
+    use influence::types::Context;
+    #[storage]
+    struct Storage {}
+    #[external(v0)]
+    fn run(
+        ref self: ContractState, assignment: Assignment, arguments: Span<felt252>, context: Context
+    ) {
+        missions::validate(assignment, arguments, context);
+    }
+}
+
+#[starknet::contract]
+mod ClaimMissionReward {
     use starknet::ContractAddress;
     use influence::types::Entity;
 
@@ -77,40 +124,6 @@ mod MissionAction {
         MissionRewardClaimed: MissionRewardClaimed
     }
 
-    use influence::common::missions;
-    use influence::common::missions::Assignment;
-    use influence::types::Context;
-    #[storage]
-    struct Storage {}
-    #[external(v0)]
-    fn run(
-        ref self: ContractState,
-        assignment: Assignment,
-        action: felt252,
-        arguments: Span<felt252>,
-        context: Context
-    ) {
-        missions::act(assignment, action, arguments, context);
-    }
-}
-
-#[starknet::contract]
-mod MissionValidate {
-    use influence::common::missions;
-    use influence::common::missions::Assignment;
-    use influence::types::Context;
-    #[storage]
-    struct Storage {}
-    #[external(v0)]
-    fn run(
-        ref self: ContractState, assignment: Assignment, arguments: Span<felt252>, context: Context
-    ) {
-        missions::validate(assignment, arguments, context);
-    }
-}
-
-#[starknet::contract]
-mod ClaimMissionReward {
     use influence::common::missions;
     use influence::common::missions::Assignment;
     use influence::types::Context;

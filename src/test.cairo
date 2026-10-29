@@ -12,3 +12,6 @@ mod lot_tenancy;
 mod lot_planning_permissions;
 
 mod ship_eviction;
+
+mod mission_observer;
+mod colonization_missions;

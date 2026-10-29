@@ -1,4 +1,4 @@
-use influence::systems::missions::MissionAction::{
+use influence::systems::missions::ClaimMissionReward::{
     Event, MissionAccepted, MissionCompleted, MissionRewardClaimed
 };
 use influence::contracts::sway::{ISwayDispatcher, ISwayDispatcherTrait};
@@ -7,7 +7,7 @@ use option::OptionTrait;
 use serde::Serde;
 use traits::{Into, TryInto};
 use starknet::{ClassHash, ContractAddress, SyscallResultTrait};
-use influence::{components, systems};
+use influence::components;
 use influence::components::Mission;
 use influence::types::{Context, Entity, EntityTrait};
 
@@ -53,13 +53,19 @@ fn bit(index: u32) -> u128 {
     b
 }
 
-fn flag(a: Assignment, kind: u32) -> bool {
-    assert(kind < 3, 'invalid lifecycle flag');
-    let page = a.mission / 32;
-    let word: u128 = read(array!['Lifecycle', a.campaign, a.subject.into(), page.into()].span())
+fn lifecycle(a: Assignment) -> u128 {
+    read(array!['Lifecycle', a.campaign, a.subject.into(), (a.mission / 32).into()].span())
         .try_into()
-        .unwrap();
-    word / bit(kind * 32 + a.mission % 32) % 2 == 1
+        .unwrap()
+}
+
+fn has_flag(word: u128, mission: u32, kind: u32) -> bool {
+    assert(kind < 3, 'invalid lifecycle flag');
+    word / bit(kind * 32 + mission % 32) % 2 == 1
+}
+
+fn flag(a: Assignment, kind: u32) -> bool {
+    has_flag(lifecycle(a), a.mission, kind)
 }
 
 fn emit(event: Event) {
@@ -70,11 +76,13 @@ fn emit(event: Event) {
 }
 
 fn set_flag(a: Assignment, kind: u32) {
-    if !flag(a, kind) {
+    let word = lifecycle(a);
+    if !has_flag(word, a.mission, kind) {
         let page = a.mission / 32;
         let path = array!['Lifecycle', a.campaign, a.subject.into(), page.into()].span();
-        let word: u128 = read(path).try_into().unwrap();
-        write(path, (word + bit(kind * 32 + a.mission % 32)).into());
+        components::set::<
+            Mission
+        >(path, Mission { value: (word + bit(kind * 32 + a.mission % 32)).into() });
         if kind == 0 {
             emit(
                 Event::MissionAccepted(
@@ -114,25 +122,19 @@ fn evaluate(
         .unwrap_syscall()
 }
 
-fn execute(
-    system: felt252, mut arguments: Array<felt252>, crew: Entity, context: Context
-) -> Span<felt252> {
-    Serde::<Entity>::serialize(@crew, ref arguments);
-    Serde::<Context>::serialize(@context, ref arguments);
-    let class = systems::get(system);
-    assert(class.into() != 0, 'system not registered');
-    starknet::syscalls::library_call_syscall(class, selector!("run"), arguments.span())
-        .unwrap_syscall()
+fn set_lock(value: felt252) {
+    let address = components::resolve('Mission', array!['ExecutionLock'].span());
+    starknet::Store::<felt252>::write(0, address, value).unwrap_syscall();
 }
 
 fn lock() {
     let path = array!['ExecutionLock'].span();
     assert(read(path) == 0, 'mission reentry');
-    write(path, 1);
+    set_lock(1);
 }
 
 fn unlock() {
-    write(array!['ExecutionLock'].span(), 0);
+    set_lock(0);
 }
 
 fn accept(a: Assignment, context: Context) {
@@ -140,14 +142,6 @@ fn accept(a: Assignment, context: Context) {
     lock();
     evaluate(a, 0, 0, array![].span(), context);
     set_flag(a, 0);
-    evaluate(a, 2, 0, array![].span(), context);
-    unlock();
-}
-
-fn act(a: Assignment, action: felt252, args: Span<felt252>, context: Context) {
-    assert(flag(a, 0), 'mission not accepted');
-    lock();
-    evaluate(a, 1, action, args, context);
     evaluate(a, 2, 0, array![].span(), context);
     unlock();
 }
@@ -160,8 +154,9 @@ fn validate(a: Assignment, args: Span<felt252>, context: Context) {
 }
 
 fn claim(a: Assignment, context: Context) {
-    assert(flag(a, 0) && flag(a, 1), 'mission incomplete');
-    assert(!flag(a, 2), 'reward already paid');
+    let word = lifecycle(a);
+    assert(has_flag(word, a.mission, 0) && has_flag(word, a.mission, 1), 'mission incomplete');
+    assert(!has_flag(word, a.mission, 2), 'reward already paid');
     lock();
     let mut raw = evaluate(a, 3, 0, array![].span(), context);
     let (beneficiary, amount) = Serde::<(ContractAddress, u128)>::deserialize(ref raw).unwrap();

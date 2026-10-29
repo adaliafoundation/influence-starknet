@@ -23,7 +23,7 @@ use influence::config::entities;
 use influence::contracts::dispatcher::Dispatcher;
 use influence::contracts::sway::{ISwayDispatcher, ISwayDispatcherTrait};
 use influence::systems::missions::{
-    AcceptMission, MissionAction, MissionValidate, ClaimMissionReward, RegisterMissionCampaign
+    AcceptMission, MissionValidate, ClaimMissionReward, RegisterMissionCampaign
 };
 use influence::systems::missions::starter::{StarterMissionCampaign, ConfigureStarterMissions};
 use influence::systems::construction::{ConstructionPlan, ConstructionStart, ConstructionFinish};
@@ -46,7 +46,7 @@ fn dispatch<T, impl S: Serde<T>, impl D: Drop<T>>(name: felt252, value: @T) {
 }
 
 fn act<T, impl S: Serde<T>, impl D: Drop<T>>(a: Assignment, name: felt252, value: @T) {
-    dispatch('MissionAction', @(a, name, encode(value).span()));
+    observe(a, name, encode(value).span());
 }
 
 fn accept(a: Assignment, step: u32) {
@@ -71,7 +71,9 @@ fn setup() -> (Assignment, Entity) {
     mocks::constants();
     mission_fixtures::configs();
     helpers::deploy_system('AcceptMission', AcceptMission::TEST_CLASS_HASH);
-    helpers::deploy_system('MissionAction', MissionAction::TEST_CLASS_HASH);
+    helpers::deploy_system(
+        'MissionObserver', influence::systems::missions::observer::MissionObserver::TEST_CLASS_HASH
+    );
     helpers::deploy_system('MissionValidate', MissionValidate::TEST_CLASS_HASH);
     helpers::deploy_system('ClaimMissionReward', ClaimMissionReward::TEST_CLASS_HASH);
     helpers::deploy_system('ConstructionPlan', ConstructionPlan::TEST_CLASS_HASH);
@@ -324,6 +326,7 @@ fn starter_missions_lifecycle_packing_and_namespaces() {
         }
         let step = Assignment { mission: index, ..a };
         missions::set_flag(step, 0);
+        missions::set_flag(step, 0);
         if index % 2 == 0 {
             missions::set_flag(step, 1);
         }
@@ -476,12 +479,13 @@ fn starter_missions_reacceptance_rejected() {
 
 #[test]
 #[available_gas(100000000)]
-#[should_panic]
-fn starter_missions_unaccepted_action_rejected() {
+#[should_panic(expected: ('campaign not accepted', 'ENTRYPOINT_FAILED'))]
+fn starter_missions_unaccepted_action_not_credited() {
     let (a, ast) = setup();
     act(
         a, 'ConstructionPlan', @(buildings::WAREHOUSE, EntityTrait::from_position(ast.id, 1758637))
     );
+    assert(!missions::flag(a, 1) && missions::state(a, 0) == 0, 'unaccepted action credited');
 }
 
 #[test]
@@ -759,7 +763,7 @@ fn starter_missions_extraction_threshold_enforced() {
     let extractor = construct(a, ast, buildings::EXTRACTOR);
     let deposit = mocks::controlled_deposit(a.subject, 1, product_types::WATER);
     let args = encode(@(deposit, 99999_u64, extractor, 1_u64, warehouse, 2_u64));
-    influence::systems::missions::starter::action(
+    influence::systems::missions::starter::pre(
         a, 'ExtractResourceStart', args.span(), mocks::context('PLAYER')
     );
 }
@@ -812,7 +816,7 @@ fn starter_missions_unwrapped_restart_cannot_reuse_evidence() {
     let current = components::get::<Processor>(array![refinery.into(), 1].span()).unwrap();
     assert(current.finish_time > old.finish_time, 'run identity reused');
     starknet::testing::set_block_timestamp(current.finish_time);
-    influence::systems::missions::starter::action(
+    influence::systems::missions::starter::pre(
         a, 'ProcessProductsFinish', encode(@(refinery, 1_u64)).span(), mocks::context('PLAYER')
     );
 }
@@ -841,11 +845,10 @@ mod AsteroidMissionFixture {
                 context.caller == starknet::contract_address_const::<'PLAYER'>(), 'not authorized'
             );
         }
-        if operation == 1 {
-            if action == 'Reenter' {
-                missions::act(a, action, args, context);
+        if operation == 2 && !args.is_empty() {
+            if *args.at(0) == 0 {
+                missions::validate(a, args, context);
             }
-            assert(action == 'SetEvidence', 'bad fixture action');
             missions::set_state(a, 9, *args.at(0));
             missions::set_flag(a, 1);
         }
@@ -868,7 +871,7 @@ fn starter_missions_framework_reused_for_asteroid_template() {
     );
     let other = Assignment { campaign: 'AsteroidFixture', subject: ast, mission: 0 };
     accept(other, 0);
-    act(other, 'SetEvidence', @77_felt252);
+    dispatch('MissionValidate', @(other, array![77_felt252].span()));
     assert(missions::flag(other, 1) && missions::state(other, 9) == 77, 'generic template failed');
     assert(!missions::flag(a, 1) && missions::state(a, 9) == 0, 'starter state affected');
 }
@@ -889,7 +892,7 @@ fn starter_missions_wrapper_reentry_rejected() {
     );
     let other = Assignment { campaign: 'AsteroidFixture', subject: ast, mission: 0 };
     accept(other, 0);
-    act(other, 'Reenter', @0_felt252);
+    dispatch('MissionValidate', @(other, array![0_felt252].span()));
 }
 
 use influence::components::order::{statuses as order_statuses, types as order_types, Order};
@@ -899,7 +902,7 @@ use influence::types::SpanHashTrait;
 use influence::components::modifier_type::types as modifier_types;
 use influence::components::product_type::types as product_types;
 
-fn market_fill(seller_campaign: bool) {
+fn market_fill() {
     starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
     let (a, _) = setup();
     accept(a, 0);
@@ -946,6 +949,20 @@ fn market_fill(seller_campaign: bool) {
         Location
     >(market.path(), LocationTrait::new(EntityTrait::from_position(asteroid.id, 500)));
     components::set::<Control>(market.path(), ControlTrait::new(market_crew));
+
+    // Exercise both campaigns on one native fill. Enrollment/scan are isolated
+    // fixtures here; the colonization suite executes those systems end to end.
+    influence::config::set('COLONIZATION_CAMPAIGN', 'ColonyTrade');
+    let colony = influence::systems::missions::colonization::assignment(asteroid);
+    missions::set_flag(colony, 0);
+    influence::systems::missions::colonization::earn(colony, 0);
+    influence::systems::missions::colonization::after(
+        'ConstructionStart', colony, market, 0, mocks::context('MARKET')
+    );
+    assert(
+        !influence::systems::missions::colonization::earned(colony, 3),
+        'construction credited commerce'
+    );
 
     // Setup warehouse
     let warehouse = influence::test::mocks::public_warehouse(crew, 3);
@@ -1017,12 +1034,8 @@ fn market_fill(seller_campaign: bool) {
     influence::systems::missions::starter::record_final_product(sale, product_types::WATER);
     influence::systems::missions::starter::record_final_product(a, product_types::WATER);
     starknet::testing::set_caller_address(starknet::contract_address_const::<'PLAYER'>());
-    let assignment = if seller_campaign {
-        sale
-    } else {
-        a
-    };
-    dispatch('MissionAction', @(assignment, 'FillSellOrder', args.span()));
+    observe(a, 'FillSellOrder', args.span());
+    assert(influence::systems::missions::colonization::earned(colony, 3), 'commerce not credited');
     assert(!influence::systems::missions::starter::earned(sale, 7), 'sale credited capstone');
     assert(!influence::systems::missions::starter::earned(a, 7), 'purchase credited capstone');
 
@@ -1091,14 +1104,7 @@ fn starter_missions_receive_from_nonparticipating_sender() {
 #[test]
 #[available_gas(150000000)]
 fn starter_missions_actual_market_purchase_receipt() {
-    market_fill(false);
-}
-
-#[test]
-#[available_gas(150000000)]
-#[should_panic]
-fn starter_missions_buyer_cannot_use_seller_assignment() {
-    market_fill(true);
+    market_fill();
 }
 
 #[test]
@@ -1145,4 +1151,29 @@ fn starter_missions_recipe_change_preserves_pending_run() {
     act(a, 'ProcessProductsFinish', @(refinery, 1_u64));
     assert(influence::systems::missions::starter::earned(a, 4), 'refining not credited');
     assert(influence::systems::missions::starter::earned(a, 10), 'route stage not credited');
+}
+
+fn observe(a: Assignment, name: felt252, args: Span<felt252>) {
+    let mut data = array![];
+    for word in args {
+        data.append(*word);
+    };
+    if name != 'FillSellOrder' {
+        Serde::serialize(@a.subject, ref data);
+    }
+    let mut targets = array![
+        a.campaign, influence::systems::missions::observer::encode_target(a, 255)
+    ];
+    if name == 'FillSellOrder' && config::get('COLONIZATION_CAMPAIGN') != 0 {
+        let market: Entity = influence::common::mission_evidence::parse(
+            influence::common::mission_evidence::segment(args, 2, 2)
+        );
+        let (id, _) = market.to_position();
+        let colony = influence::systems::missions::colonization::assignment(
+            EntityTrait::new(entities::ASTEROID, id)
+        );
+        targets.append(colony.campaign);
+        targets.append(influence::systems::missions::observer::encode_target(colony, 8));
+    }
+    influence::test::mission_observer::observed(name, data, targets.span());
 }

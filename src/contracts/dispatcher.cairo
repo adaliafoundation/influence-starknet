@@ -22,7 +22,17 @@ mod Dispatcher {
         constants: Map::<felt252, felt252>, // name -> constant (game constants)
         contract_registry: Map::<felt252, ContractAddress>,
         role_grants: Map::<(ContractAddress, u64), bool>,
-        system_registry: Map::<felt252, ClassHash>
+        system_registry: Map::<felt252, ClassHash>,
+        observation_tx: felt252,
+        observation_account: ContractAddress,
+        observation_system: felt252,
+        observation_args: felt252,
+        observation_caller: ContractAddress,
+        observation_policy: ClassHash,
+        observation_active: bool,
+        observation_executing: bool,
+        observation_data_len: u32,
+        observation_data: Map::<u32, felt252>
     }
 
     #[derive(Copy, Drop, starknet::Event)]
@@ -132,50 +142,164 @@ mod Dispatcher {
         return self.system_registry.write(name, class_hash);
     }
 
+    // Arm one exact native invocation within this account transaction.
+    #[external(v0)]
+    fn begin_observation(
+        ref self: ContractState,
+        policy: felt252,
+        name: felt252,
+        arguments_hash: felt252,
+        expected_caller: ContractAddress,
+        policy_data: Span<felt252>
+    ) {
+        let tx = starknet::get_tx_info().unbox();
+        assert(
+            starknet::get_caller_address() == tx.account_contract_address, 'only account may arm'
+        );
+        assert(!self.observation_executing.read(), 'observer reentry');
+        assert(
+            !(self.observation_active.read() && self.observation_tx.read() == tx.transaction_hash),
+            'already armed'
+        );
+        let class = self.system_registry.read(policy);
+        assert(class.into() != 0, 'unknown policy');
+        self.observation_tx.write(tx.transaction_hash);
+        // Keep the old storage fields in the layout, but bind the invocation in one slot.
+        self
+            .observation_args
+            .write(
+                poseidon::poseidon_hash_span(
+                    array![name, arguments_hash, expected_caller.into()].span()
+                )
+            );
+        assert(policy_data.len() <= 16, 'observation data too long');
+        self.observation_data_len.write(policy_data.len());
+        let mut i = 0;
+        for value in policy_data {
+            self.observation_data.write(i, *value);
+            i += 1;
+        };
+        self.observation_policy.write(class);
+        self.observation_active.write(true);
+    }
+
+    // The final multicall step prevents an unmatched arm from silently losing evidence.
+    #[external(v0)]
+    fn end_observation(ref self: ContractState) {
+        let tx = starknet::get_tx_info().unbox();
+        assert(starknet::get_caller_address() == tx.account_contract_address, 'account only');
+        assert(self.observation_tx.read() == tx.transaction_hash, 'no observation');
+        assert(
+            !self.observation_active.read() && !self.observation_executing.read(),
+            'observation not consumed'
+        );
+    }
+
+    fn dispatch(
+        ref self: ContractState, name: felt252, arguments: Span<felt252>, calldata: Span<felt252>
+    ) -> Span<felt252> {
+        let tx = starknet::get_tx_info().unbox();
+        // Most transactions have no observation: one storage read, no policy lookup.
+        if self.observation_tx.read() != tx.transaction_hash {
+            return library_call_syscall(self.system_registry.read(name), selector!("run"), calldata)
+                .unwrap_syscall();
+        }
+        assert(!self.observation_executing.read(), 'observer reentry');
+        let observed = self.observation_active.read()
+            && self
+                .observation_args
+                .read() == poseidon::poseidon_hash_span(
+                    array![
+                        name,
+                        poseidon::poseidon_hash_span(arguments),
+                        starknet::get_caller_address().into()
+                    ]
+                        .span()
+                );
+        let mut snapshot = array![].span();
+        let policy = self.observation_policy.read();
+        if observed {
+            self.observation_active.write(false);
+            self.observation_executing.write(true);
+            let mut input = array![name];
+            Serde::serialize(@calldata, ref input);
+            let mut policy_data = array![];
+            let length = self.observation_data_len.read();
+            let mut i = 0;
+            loop {
+                if i == length {
+                    break;
+                }
+                policy_data.append(self.observation_data.read(i));
+                i += 1;
+            };
+            Serde::serialize(@policy_data, ref input);
+            let mut output = library_call_syscall(policy, selector!("before"), input.span())
+                .unwrap_syscall();
+            snapshot = Serde::<Span<felt252>>::deserialize(ref output).unwrap();
+            assert(output.is_empty(), 'invalid pre response');
+        }
+        let result = library_call_syscall(
+            self.system_registry.read(name), selector!("run"), calldata
+        )
+            .unwrap_syscall();
+        if observed {
+            let mut input = array![name];
+            Serde::serialize(@calldata, ref input);
+            Serde::serialize(@snapshot, ref input);
+            Serde::serialize(@result, ref input);
+            library_call_syscall(policy, selector!("after"), input.span()).unwrap_syscall();
+            self.observation_executing.write(false);
+        }
+        result
+    }
+
     // Run systems
     #[external(v0)]
-    fn run_system(ref self: ContractState, name: felt252, mut calldata: Array<felt252>) -> Span<felt252> {
+    fn run_system(
+        ref self: ContractState, name: felt252, mut calldata: Array<felt252>
+    ) -> Span<felt252> {
         // Check if entropy should be generated and do it if needed
         let (generated, round) = random::entropy::generate();
 
         // Emit event if entropy was generated
         if (generated != 0) {
-            self.emit(EntropyGenerated {
-                entropy: generated,
-                round: round
-            });
+            self.emit(EntropyGenerated { entropy: generated, round: round });
         }
 
+        let arguments = calldata.span();
         // Add the caller address to Context
         calldata.append(starknet::get_caller_address().into()); // caller
         calldata.append(starknet::get_block_timestamp().into()); // now
         calldata.append(0); // payment_to
         calldata.append(0); // PAYMENT_AMOUNT
 
-        let class_hash = self.system_registry.read(name);
-        let entrypoint = 0x17655d3ec0a25c443f877d52bb6b36e9e6aaf8fbeb43608c3b9423bdc0822be; // run
-        return library_call_syscall(class_hash.into(), entrypoint, calldata.span()).unwrap();
+        dispatch(ref self, name, arguments, calldata.span())
     }
 
     #[external(v0)]
     fn run_system_with_payment(
-        ref self: ContractState, name: felt252, mut calldata: Array<felt252>, payment: Array<felt252>
+        ref self: ContractState,
+        name: felt252,
+        mut calldata: Array<felt252>,
+        payment: Array<felt252>
     ) -> Span<felt252> {
         // Check that call originates from SWAY contract
-        assert(starknet::get_caller_address() == contract(@self, 'SWAY'), 'must be called from SWAY');
+        assert(
+            starknet::get_caller_address() == contract(@self, 'SWAY'), 'must be called from SWAY'
+        );
 
         // Check if entropy should be generated and do it if needed
         random::entropy::generate();
 
+        let arguments = calldata.span();
         // Add the sender as caller, and payment details to Context
         calldata.append(*payment.at(0)); // caller
         calldata.append(starknet::get_block_timestamp().into()); // now
         calldata.append(*payment.at(1)); // payment_to
         calldata.append(*payment.at(2)); // payment_amount
 
-        let class_hash = self.system_registry.read(name);
-        let entrypoint = 0x17655d3ec0a25c443f877d52bb6b36e9e6aaf8fbeb43608c3b9423bdc0822be; // run
-        return library_call_syscall(class_hash.into(), entrypoint, calldata.span()).unwrap();
+        dispatch(ref self, name, arguments, calldata.span())
     }
 
     fn assert_admin(self: @ContractState) {
@@ -185,7 +309,8 @@ mod Dispatcher {
     }
 }
 
-// Tests --------------------------------------------------------------------------------------------------------------
+// Tests
+// --------------------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
@@ -210,7 +335,9 @@ mod tests {
 
         let entity = EntityTrait::new(entities::ASTEROID, 1);
         let crew = EntityTrait::new(entities::CREW, 1);
-        components::set::<Crew>(crew.path(), CrewTrait::new(starknet::contract_address_const::<'PLAYER'>()));
+        components::set::<
+            Crew
+        >(crew.path(), CrewTrait::new(starknet::contract_address_const::<'PLAYER'>()));
         components::set::<Control>(entity.path(), ControlTrait::new(crew));
 
         // Build up calldata
@@ -231,7 +358,9 @@ mod tests {
 
         let entity = EntityTrait::new(entities::ASTEROID, 1);
         let crew = EntityTrait::new(entities::CREW, 1);
-        components::set::<Crew>(crew.path(), CrewTrait::new(starknet::contract_address_const::<'PLAYER'>()));
+        components::set::<
+            Crew
+        >(crew.path(), CrewTrait::new(starknet::contract_address_const::<'PLAYER'>()));
         components::set::<Control>(entity.path(), ControlTrait::new(crew));
 
         // Build up calldata
@@ -247,11 +376,15 @@ mod tests {
         Dispatcher::constructor(ref state, starknet::contract_address_const::<'ADMIN'>());
 
         starknet::testing::set_caller_address(starknet::contract_address_const::<'ADMIN'>());
-        Dispatcher::register_contract(ref state, 'SWAY', starknet::contract_address_const::<'SWAY'>());
+        Dispatcher::register_contract(
+            ref state, 'SWAY', starknet::contract_address_const::<'SWAY'>()
+        );
 
         // Switch to call from SWAY contract context
         starknet::testing::set_caller_address(starknet::contract_address_const::<'SWAY'>());
-        let _res = Dispatcher::run_system_with_payment(ref state, 'ChangeName', run_calldata, payment);
+        let _res = Dispatcher::run_system_with_payment(
+            ref state, 'ChangeName', run_calldata, payment
+        );
     }
 
     #[test]
@@ -262,7 +395,9 @@ mod tests {
 
         let entity = EntityTrait::new(entities::ASTEROID, 1);
         let crew = EntityTrait::new(entities::CREW, 1);
-        components::set::<Crew>(crew.path(), CrewTrait::new(starknet::contract_address_const::<'PLAYER'>()));
+        components::set::<
+            Crew
+        >(crew.path(), CrewTrait::new(starknet::contract_address_const::<'PLAYER'>()));
         components::set::<Control>(entity.path(), ControlTrait::new(crew));
 
         // Build up calldata

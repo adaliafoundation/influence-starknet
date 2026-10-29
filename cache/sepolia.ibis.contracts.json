@@ -1,20 +1,20 @@
 {
   "influence.Dispatcher.im030d6697bi2": {
     "address": "0x517567ac7026ce129c950e6e113e437aa3c83716cd61481c6bb8c5057e6923e",
-    "classHash": "0x5dde112c893e2f5ed85b92a08d93cfa5579ce95d27afb34e47b7e7aad59c1c0",
+    "classHash": "0x2487ca9e3d4bf1173ba564bdbf8febfd08c878b302add69014bd905348b91e4",
     "constructorArgs": {
       "admin": "0x5fd4befee268bf6880f955875cbed3ade8346b1f1e149cc87b317e62b6db569"
     },
-    "declaredAt": 1713798221386,
-    "declareTxHash": "0x61c081572afc1eda5dece26604eac2103cc21688e6959e71e5a7061bed637bb",
+    "declaredAt": 1792661703986,
+    "declareTxHash": "0x11bd6370b1eaa1aae4b21e496212b9143ad79978756f83c1580b147335d3aba",
     "deployedAt": 1704125891640,
     "deployTxHash": "0x2799ef299b71edfb67356988c332062928dd643e104737df49acd7752b36c8d",
     "deployer": "0x5fd4befee268bf6880f955875cbed3ade8346b1f1e149cc87b317e62b6db569",
     "baseline": {
-      "acceptedClassHash": "0x5dde112c893e2f5ed85b92a08d93cfa5579ce95d27afb34e47b7e7aad59c1c0",
-      "classHash": "0x68ee0c1499201aeeefdbd43071312cf4bb1b0131071ebe63221a73f6c38f087",
-      "createdAt": "2026-07-16",
-      "reason": "accepted Cairo 2.7 migration baseline"
+      "acceptedClassHash": "0x2487ca9e3d4bf1173ba564bdbf8febfd08c878b302add69014bd905348b91e4",
+      "classHash": "0x2487ca9e3d4bf1173ba564bdbf8febfd08c878b302add69014bd905348b91e4",
+      "updatedAt": "2026-10-22T09:35:31.702Z",
+      "reason": "updated on-chain class hash"
     }
   },
   "influence.Asteroid.g6kdh3ma8rej4": {
@@ -163,7 +163,7 @@
     "baseline": {
       "acceptedClassHash": "0x5a176e1e90c32cfeb0136e605ccc39841ed25e754ea420fc4dace47d6a30533",
       "classHash": "0x5a176e1e90c32cfeb0136e605ccc39841ed25e754ea420fc4dace47d6a30533",
-      "updatedAt": "2026-10-20T08:53:20.787Z",
+      "updatedAt": "2026-10-29T11:25:17.559Z",
       "reason": "updated on-chain class hash"
     },
     "declareTxHash": "0x20f17d5a1ce59a3143205a5f18a910e12041722382fc8bde40f4d29b1f53cb0"
@@ -1286,13 +1286,13 @@
     }
   },
   "influence.AcceptMission.ndk60immleba6": {
-    "declaredAt": 1790063996088,
-    "declareTxHash": "0x625a38e4eac6172edbcda20995af0a64c0774b42c0f0f8762d5a655c39f260f",
-    "classHash": "0x5e7f6910a5b810c1f8c05ce8379257ffdf1d868a10eff5f8219f1251eaacb13",
+    "declaredAt": 1792661796082,
+    "declareTxHash": "0x4fe6988ed208287d64e86c552056a941b97cc46b66cba59772e3ed658d1dd54",
+    "classHash": "0x3f7cae49bd1ac824a661179adf7313c2433e7606fa49c6309e3760d35435247",
     "baseline": {
-      "acceptedClassHash": "0x5e7f6910a5b810c1f8c05ce8379257ffdf1d868a10eff5f8219f1251eaacb13",
-      "classHash": "0x5e7f6910a5b810c1f8c05ce8379257ffdf1d868a10eff5f8219f1251eaacb13",
-      "updatedAt": "2026-09-22T08:00:26.463Z",
+      "acceptedClassHash": "0x3f7cae49bd1ac824a661179adf7313c2433e7606fa49c6309e3760d35435247",
+      "classHash": "0x3f7cae49bd1ac824a661179adf7313c2433e7606fa49c6309e3760d35435247",
+      "updatedAt": "2026-10-22T09:37:02.580Z",
       "reason": "updated on-chain class hash"
     }
   },
@@ -1308,35 +1308,35 @@
     }
   },
   "influence.MissionValidate.1lg94skmgnsbc": {
-    "declaredAt": 1790064058757,
-    "declareTxHash": "0x28778fb8c04ce3698514dfb9ae1f197a824a71b0bf7baf258034aaed9c4af47",
-    "classHash": "0x348977ac478231a878125a0fc22de9c4c9046446d109e224cf5a236536a4fb7",
+    "declaredAt": 1792661916668,
+    "declareTxHash": "0x64711fd1d113562ed4e0a2b6cfef32d4bffdb2d8c7a37e5fd889ea8b425d73f",
+    "classHash": "0x6de91427e2535f4a06a7673b51100eb428756d7f702619e183ea095919f1869",
     "baseline": {
-      "acceptedClassHash": "0x348977ac478231a878125a0fc22de9c4c9046446d109e224cf5a236536a4fb7",
-      "classHash": "0x348977ac478231a878125a0fc22de9c4c9046446d109e224cf5a236536a4fb7",
-      "updatedAt": "2026-09-22T08:01:27.985Z",
+      "acceptedClassHash": "0x6de91427e2535f4a06a7673b51100eb428756d7f702619e183ea095919f1869",
+      "classHash": "0x6de91427e2535f4a06a7673b51100eb428756d7f702619e183ea095919f1869",
+      "updatedAt": "2026-10-22T09:39:02.762Z",
       "reason": "updated on-chain class hash"
     }
   },
   "influence.ClaimMissionReward.iba1mpah9c2fe": {
-    "declaredAt": 1790064089310,
-    "declareTxHash": "0x2f510aeb17069e63c610213055cb0801009c2ed3a2d37c530a6865ac4439c72",
-    "classHash": "0x72ee5d302a7d139b243a3ffbaab0b754b5984e2801b2978a0010aa3f5ee00bf",
+    "declaredAt": 1792661944459,
+    "declareTxHash": "0x748e162839f326c7b0162eb5193eb5e4f7348d9a865532d82a677d9da489c39",
+    "classHash": "0x3bb03f1942419628c76767ded22bcb18143b89977e1fbb47278db686657be5b",
     "baseline": {
-      "acceptedClassHash": "0x72ee5d302a7d139b243a3ffbaab0b754b5984e2801b2978a0010aa3f5ee00bf",
-      "classHash": "0x72ee5d302a7d139b243a3ffbaab0b754b5984e2801b2978a0010aa3f5ee00bf",
-      "updatedAt": "2026-09-22T08:01:58.434Z",
+      "acceptedClassHash": "0x3bb03f1942419628c76767ded22bcb18143b89977e1fbb47278db686657be5b",
+      "classHash": "0x3bb03f1942419628c76767ded22bcb18143b89977e1fbb47278db686657be5b",
+      "updatedAt": "2026-10-22T09:39:30.072Z",
       "reason": "updated on-chain class hash"
     }
   },
   "influence.ReadMissionState.i3vai5bn6re4m": {
-    "declaredAt": 1790064119786,
-    "declareTxHash": "0x7ba2f9ebb0d00ada17d1ddbce7e17494fe67bfa6b92c5d8dad478b4e3c073bd",
-    "classHash": "0x7a4edb7b68970827790adf10a0af054fc7f7e4b4c056a3963b238712d2854f3",
+    "declaredAt": 1792661971364,
+    "declareTxHash": "0x13a0660e65a3ef77c87353a9d2d9df0945d1e32778751b1aec17eae04279081",
+    "classHash": "0x3a826cd382d5211a8bbd7ce818ab676dbf759b4036cd36e5a437faccdd9175",
     "baseline": {
-      "acceptedClassHash": "0x7a4edb7b68970827790adf10a0af054fc7f7e4b4c056a3963b238712d2854f3",
-      "classHash": "0x7a4edb7b68970827790adf10a0af054fc7f7e4b4c056a3963b238712d2854f3",
-      "updatedAt": "2026-09-22T08:02:30.005Z",
+      "acceptedClassHash": "0x3a826cd382d5211a8bbd7ce818ab676dbf759b4036cd36e5a437faccdd9175",
+      "classHash": "0x3a826cd382d5211a8bbd7ce818ab676dbf759b4036cd36e5a437faccdd9175",
+      "updatedAt": "2026-10-22T09:39:59.190Z",
       "reason": "updated on-chain class hash"
     }
   },
@@ -1352,8 +1352,57 @@
     }
   },
   "influence.StarterMissionCampaign.6ipmt8au9sauq": {
-    "declaredAt": 1790089198565,
-    "declareTxHash": "0x646eb66c80d2e7909e7841f40f7710a78d368cc64615efa6552f2966a9c459f",
-    "classHash": "0x7fb9a659552badc0bc64e23dd3f7b0ba829027588309fcbe2da0b2e26febbdb"
+    "declaredAt": 1792661734487,
+    "declareTxHash": "0x3494bf2cb7a85de130e42cdba25c88fe167d28d3f44e57722eb2838da047a58",
+    "classHash": "0xc15a6543bdeb54dc5bc555a3357923c0d917909f1dad779cb82626de8c51ce"
+  },
+  "influence.ColonizationMissionCampaign.kvp4eclvfni3q": {
+    "declaredAt": 1792661760422,
+    "declareTxHash": "0x95ef151a6a7ea1dc38e1a8c95a4e86f51fefbb5de8fa25be1043e981c43750",
+    "classHash": "0x5e4efb70fc48b73167ad57f20d079b76717a0a1ce1e5916134aa58da1a2ca0a"
+  },
+  "influence.MissionObserver.ko2ln7ksv30j0": {
+    "declaredAt": 1792661829004,
+    "declareTxHash": "0x1aeb359c11da6af841a374e9e07d0ac2657926b6cb0cd9f8e5b40fe2510e078",
+    "classHash": "0x74bf8991731421653bbf6fe454c9f82ab6ad3341ffb3135127a46cf30cc0f1",
+    "baseline": {
+      "acceptedClassHash": "0x74bf8991731421653bbf6fe454c9f82ab6ad3341ffb3135127a46cf30cc0f1",
+      "classHash": "0x74bf8991731421653bbf6fe454c9f82ab6ad3341ffb3135127a46cf30cc0f1",
+      "updatedAt": "2026-10-22T09:37:38.446Z",
+      "reason": "updated on-chain class hash"
+    }
+  },
+  "influence.MigrateStarterObserver.jvrr3ujunudok": {
+    "declaredAt": 1792661860092,
+    "declareTxHash": "0x3dff3e22876bae11baf3b39c422db660fcbf96e37d5f5e82d70cd8874fbc5bf",
+    "classHash": "0x172cc057affa442dcb9a755098ebc9277c7ead7388f4346893d97183b5a7bb2",
+    "baseline": {
+      "acceptedClassHash": "0x172cc057affa442dcb9a755098ebc9277c7ead7388f4346893d97183b5a7bb2",
+      "classHash": "0x172cc057affa442dcb9a755098ebc9277c7ead7388f4346893d97183b5a7bb2",
+      "updatedAt": "2026-10-22T09:38:06.467Z",
+      "reason": "updated on-chain class hash"
+    }
+  },
+  "influence.UpgradeMissionCampaign.n9784q5kjv1j4": {
+    "declaredAt": 1792661887767,
+    "declareTxHash": "0x58ee5caa6434aed2bc8551af777c8c950aa3ab18201d2c96ede583b7ca85570",
+    "classHash": "0x6b2195229db4e09b6a9975fc983bb36627a668263eeec60bdb3044b45b0097d",
+    "baseline": {
+      "acceptedClassHash": "0x6b2195229db4e09b6a9975fc983bb36627a668263eeec60bdb3044b45b0097d",
+      "classHash": "0x6b2195229db4e09b6a9975fc983bb36627a668263eeec60bdb3044b45b0097d",
+      "updatedAt": "2026-10-22T09:38:35.228Z",
+      "reason": "updated on-chain class hash"
+    }
+  },
+  "influence.ConfigureColonizationMissions.p2qjba90egv1u": {
+    "declaredAt": 1792662000816,
+    "declareTxHash": "0x25d4cac0f74cef4ccbad6a0e2b937d2571e299ddece7c5724668282f1ccc52e",
+    "classHash": "0x4896b4610c6cf1848b6675908882d13d565f5af73a30874f9280ee87b0a7c3a",
+    "baseline": {
+      "acceptedClassHash": "0x4896b4610c6cf1848b6675908882d13d565f5af73a30874f9280ee87b0a7c3a",
+      "classHash": "0x4896b4610c6cf1848b6675908882d13d565f5af73a30874f9280ee87b0a7c3a",
+      "updatedAt": "2026-10-22T09:40:26.919Z",
+      "reason": "updated on-chain class hash"
+    }
   }
 }

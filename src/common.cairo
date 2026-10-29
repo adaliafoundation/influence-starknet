@@ -17,3 +17,5 @@ mod missions;
 mod mission_eligibility;
 
 mod lot_access;
+
+mod mission_evidence;

@@ -1,3 +1,4 @@
+use influence::common::mission_evidence::{key, hash, parse, encoded, segment};
 use influence::components::product_type::types as products;
 use influence::components::processor::types as processors;
 use influence::components::process_type::types as processes;
@@ -24,34 +25,6 @@ use influence::types::Context;
 // Slot 0: requirement bits 0..7, sample count 8..9, upstream route bits 10..14.
 // Slot 1: campaign Warehouse ID. Slots 100+: final-product bitmaps (128 per word).
 // Pending actions and construction evidence are keyed by entity/slot.
-fn key(kind: felt252, entity: Entity, slot: u64) -> felt252 {
-    poseidon::poseidon_hash_span(array![kind, entity.into(), slot.into()].span())
-}
-
-fn hash<T, impl S: Serde<T>, impl D: Drop<T>>(value: @T) -> felt252 {
-    let mut data = array![];
-    Serde::<T>::serialize(value, ref data);
-    poseidon::poseidon_hash_span(data.span())
-}
-
-fn parse<T, impl S: Serde<T>, impl D: Drop<T>>(mut args: Span<felt252>) -> T {
-    let value = Serde::<T>::deserialize(ref args).expect('invalid mission arguments');
-    assert(args.is_empty(), 'trailing mission arguments');
-    value
-}
-
-fn encoded<T, impl S: Serde<T>, impl D: Drop<T>>(value: @T) -> Array<felt252> {
-    let mut data = array![];
-    Serde::<T>::serialize(value, ref data);
-    data
-}
-
-fn run<T, impl S: Serde<T>, impl D: Drop<T>>(
-    action: felt252, value: @T, crew: Entity, context: Context
-) {
-    missions::execute(action, encoded(value), crew, context);
-}
-
 fn building_fingerprint(building: Entity, data: Building) -> felt252 {
     hash(@(building, data.building_type, data.planned_at, data.finish_time))
 }
@@ -219,252 +192,12 @@ fn authorize(a: Assignment, context: Context) {
 }
 
 fn validate(a: Assignment) {
-    let mut i = 0_u32;
-    loop {
-        if i == 8 {
-            break;
-        }
-        let step = Assignment { mission: i, ..a };
-        if missions::flag(step, 0)
-            && earned(a, i)
-            && (i == 0 || missions::flag(Assignment { mission: i - 1, ..a }, 1)) {
-            missions::set_flag(step, 1);
-        }
-        i += 1;
-    };
-}
-
-fn action(a: Assignment, name: felt252, args: Span<felt252>, context: Context) {
-    authorize(a, context);
-    eligibility::participate(a.subject);
-    if name == 'ConstructionPlan' {
-        let (kind, lot) = parse::<(u64, Entity)>(args);
-        assert(kind >= buildings::WAREHOUSE && kind <= buildings::FACTORY, 'unsupported building');
-        if kind == buildings::WAREHOUSE {
-            assert(selected(a, 1).is_empty(), 'warehouse already planned');
-        }
-        let before = influence::entities::current_id(entities::BUILDING.into());
-        run(name, @(kind, lot), a.subject, context);
-        let building = new_entity(entities::BUILDING, entities::BUILDING.into(), before);
-        if kind == buildings::WAREHOUSE {
-            missions::set_state(a, 1, building.id.into());
-            earn(a, 0);
-        }
-    } else if name == 'ConstructionStart' {
-        let building = parse::<Entity>(args);
-        let old = components::get::<Building>(building.path()).expect('building missing');
-        assert(
-            old.building_type >= buildings::WAREHOUSE && old.building_type <= buildings::FACTORY,
-            'unsupported building'
-        );
-        if old.building_type == buildings::WAREHOUSE {
-            assert(building == selected(a, 1), 'wrong warehouse');
-        }
-        let cfg = BuildingTypeTrait::by_type(old.building_type);
-        let inputs = ProcessTypeTrait::by_type(cfg.process_type).inputs;
-        let site = components::get::<
-            Inventory
-        >(array![building.into(), cfg.site_slot.into()].span())
-            .expect('inventory missing');
-        let mut supplied = true;
-        let mut items = inputs;
-        loop {
-            match items.pop_front() {
-                Option::Some(item) => {
-                    if site.contents.amount_of(*item.product) < *item.amount {
-                        supplied = false;
-                    }
-                },
-                Option::None(_) => { break; }
-            }
-        };
-        run(name, @building, a.subject, context);
-        if supplied {
-            economic(a, inputs);
-        }
-        let data = components::get::<Building>(building.path()).unwrap();
-        missions::set_state(a, key('Built', building, 0), building_fingerprint(building, data));
-    } else if name == 'ConstructionFinish' {
-        let building = parse::<Entity>(args);
-        run(name, @building, a.subject, context);
-        own_building(a, building);
-    } else if name == 'SampleDepositStart' {
-        let params = parse::<(Entity, u64, Entity, u64)>(args);
-        let before = influence::entities::current_id(entities::DEPOSIT.into());
-        run(name, @params, a.subject, context);
-        let deposit = new_entity(entities::DEPOSIT, entities::DEPOSIT.into(), before);
-        let data = components::get::<Deposit>(deposit.path()).unwrap();
-        missions::set_state(a, key('Sample', deposit, 0), hash(@data));
-    } else if name == 'SampleDepositFinish' {
-        let deposit = parse::<Entity>(args);
-        let data = components::get::<Deposit>(deposit.path()).expect('deposit missing');
-        assert(missions::state(a, key('Sample', deposit, 0)) == hash(@data), 'unbound sample');
-        assert(data.initial_yield == 0, 'not initial sampling');
-        run(name, @deposit, a.subject, context);
-        missions::set_state(a, key('Sample', deposit, 0), 0);
-        let result = components::get::<Deposit>(deposit.path()).unwrap();
-        record_sample(a, result.initial_yield);
-    } else if name == 'ExtractResourceStart' {
-        let (deposit, amount, building, slot, destination, dest_slot) = parse::<
-            (Entity, u64, Entity, u64, Entity, u64)
-        >(args);
-        let data = own_building(a, building);
-        assert(data.building_type == buildings::EXTRACTOR, 'not extractor');
-        let dep = components::get::<Deposit>(deposit.path()).expect('deposit missing');
-        assert(
-            dep.resource >= products::WATER && dep.resource <= products::URANINITE,
-            'not raw resource'
-        );
-        let amount_wide: u128 = amount.into();
-        let unit_mass: u128 = ProductTypeTrait::by_type(dep.resource).mass.into();
-        assert(amount_wide * unit_mass >= 100000000_u128, 'extraction below threshold');
-        run(name, @(deposit, amount, building, slot, destination, dest_slot), a.subject, context);
-        let extractor = components::get::<Extractor>(array![building.into(), slot.into()].span())
-            .unwrap();
-        assert(extractor.finish_time > context.now, 'zero duration');
-        missions::set_state(a, key('Extraction', building, slot), hash(@extractor));
-    } else if name == 'ExtractResourceFinish' {
-        let (building, slot) = parse::<(Entity, u64)>(args);
-        own_building(a, building);
-        let extractor = components::get::<Extractor>(array![building.into(), slot.into()].span())
-            .expect('extractor missing');
-        assert(
-            missions::state(a, key('Extraction', building, slot)) == hash(@extractor),
-            'unbound extraction'
-        );
-        run(name, @(building, slot), a.subject, context);
-        missions::set_state(a, key('Extraction', building, slot), 0);
-        earn(a, 2);
-        storage_received(a, extractor.destination, extractor.destination_slot);
-    } else if name == 'ProcessProductsStart' {
-        let (
-            building, slot, process, output, recipes, origin, origin_slot, destination, dest_slot
-        ) =
-            parse::<
-            (Entity, u64, u64, u64, Fixed, Entity, u64, Entity, u64)
-        >(args);
-        let data = own_building(a, building);
-        assert(
-            data.building_type >= buildings::REFINERY && data.building_type <= buildings::FACTORY,
-            'unsupported processor'
-        );
-        assert(recipes >= FixedTrait::ONE(), 'recipe below threshold');
-        let cfg = ProcessTypeTrait::by_type(process);
-        let inputs = influence::systems::production::helpers::inputs(cfg.inputs, recipes);
-        let mut downstream = 0_u128;
-        let mut i = 0_u32;
-        loop {
-            if i == 5 {
-                break;
-            }
-            let (_, second, product) = routes(i);
-            if process == second && earned(a, 10 + i) && inputs.amount_of(product) > 0 {
-                downstream += missions::bit(i);
-            }
-            i += 1;
-        };
-        run(
-            name,
-            @(
-                building,
-                slot,
-                process,
-                output,
-                recipes,
-                origin,
-                origin_slot,
-                destination,
-                dest_slot
-            ),
-            a.subject,
-            context
-        );
-        let processor = components::get::<Processor>(array![building.into(), slot.into()].span())
-            .unwrap();
-        assert(processor.finish_time > context.now, 'zero duration');
-        missions::set_state(a, key('Process', building, slot), hash(@processor));
-        missions::set_state(a, key('Downstream', building, slot), downstream.into());
-        economic(a, inputs);
-    } else if name == 'ProcessProductsFinish' {
-        let (building, slot) = parse::<(Entity, u64)>(args);
-        own_building(a, building);
-        let processor = components::get::<Processor>(array![building.into(), slot.into()].span())
-            .expect('processor missing');
-        assert(
-            missions::state(a, key('Process', building, slot)) == hash(@processor),
-            'unbound process'
-        );
-        let downstream = missions::state(a, key('Downstream', building, slot)).try_into().unwrap();
-        run(name, @(building, slot), a.subject, context);
-        missions::set_state(a, key('Process', building, slot), 0);
-        missions::set_state(a, key('Downstream', building, slot), 0);
-        completed_process(a, processor, downstream);
-        storage_received(a, processor.destination, processor.destination_slot);
-    } else if name == 'SendDelivery' {
-        let (origin, origin_slot, items, destination, dest_slot) = parse::<
-            (Entity, u64, Span<InventoryItem>, Entity, u64)
-        >(args);
-        assert(origin != destination, 'self delivery not economic');
-        let before = influence::entities::current_id('Delivery');
-        run(name, @(origin, origin_slot, items, destination, dest_slot), a.subject, context);
-        let delivery = new_entity(entities::DELIVERY, 'Delivery', before);
-        bind_delivery(a, delivery, true);
-    } else if name == 'ReceiveDelivery' {
-        let delivery = parse::<Entity>(args);
-        let bound = missions::state(a, key('Delivery', delivery, 0));
-        if bound == 0 {
-            // Receiving into our Warehouse is itself attributable to this crew;
-            // the sender (including a marketplace seller) need not participate.
-            let incoming = components::get::<Delivery>(delivery.path()).expect('delivery missing');
-            assert(incoming.dest == selected(a, 1) && incoming.dest_slot == 2, 'unbound delivery');
-            own_building(a, incoming.dest);
-            bind_delivery(a, delivery, false);
-        }
-        run(name, @delivery, a.subject, context);
-        credit_delivery(a, delivery);
-    } else if name == 'ResupplyFood' {
-        let (origin, slot, amount) = parse::<(Entity, u64, u64)>(args);
-        assert(!origin.is_empty(), 'allowance is not consumption');
-        run(name, @(origin, slot, amount), a.subject, context);
-        economic(a, array![InventoryItem { product: products::FOOD, amount }].span());
-    } else if name == 'FillSellOrder' {
-        let (
-            seller,
-            exchange,
-            product,
-            amount,
-            price,
-            storage,
-            storage_slot,
-            destination,
-            dest_slot,
-            buyer
-        ) =
-            parse::<
-            (Entity, Entity, u64, u64, u64, Entity, u64, Entity, u64, Entity)
-        >(args);
-        assert(buyer == a.subject, 'not campaign buyer');
-        let before = influence::entities::current_id('Delivery');
-        run(
-            name,
-            @(
-                seller,
-                exchange,
-                product,
-                amount,
-                price,
-                storage,
-                storage_slot,
-                destination,
-                dest_slot
-            ),
-            buyer,
-            context
-        );
-        let delivery = new_entity(entities::DELIVERY, 'Delivery', before);
-        bind_delivery(a, delivery, false);
-    } else {
-        panic_with_felt252('unsupported mission action');
+    let word = missions::lifecycle(a);
+    if missions::has_flag(word, a.mission, 0)
+        && !missions::has_flag(word, a.mission, 1)
+        && earned(a, a.mission)
+        && (a.mission == 0 || missions::flag(Assignment { mission: a.mission - 1, ..a }, 1)) {
+        missions::set_flag(a, 1);
     }
 }
 
@@ -529,6 +262,248 @@ fn credit_delivery(a: Assignment, delivery: Entity) {
     missions::set_state(a, key('EconomicDelivery', delivery, 0), 0);
 }
 
+
+fn pre(a: Assignment, name: felt252, args: Span<felt252>, context: Context) -> Span<felt252> {
+    check_context(a, context);
+    assert(missions::flag(a, 0), 'mission not accepted');
+    authorize(a, context);
+    eligibility::participate(a.subject);
+    if name == 'ConstructionPlan' {
+        let (kind, _lot) = parse::<(u64, Entity)>(args);
+        assert(kind >= buildings::WAREHOUSE && kind <= buildings::FACTORY, 'unsupported building');
+        if kind == buildings::WAREHOUSE {
+            assert(selected(a, 1).is_empty(), 'warehouse already planned');
+        }
+        encoded(@influence::entities::current_id(entities::BUILDING.into())).span()
+    } else if name == 'ConstructionStart' {
+        let building = parse::<Entity>(args);
+        let old = components::get::<Building>(building.path()).expect('building missing');
+        assert(
+            old.building_type >= buildings::WAREHOUSE && old.building_type <= buildings::FACTORY,
+            'unsupported building'
+        );
+        if old.building_type == buildings::WAREHOUSE {
+            assert(building == selected(a, 1), 'wrong warehouse');
+        }
+        let cfg = BuildingTypeTrait::by_type(old.building_type);
+        let inputs = ProcessTypeTrait::by_type(cfg.process_type).inputs;
+        let site = components::get::<
+            Inventory
+        >(array![building.into(), cfg.site_slot.into()].span())
+            .unwrap();
+        let mut supplied = true;
+        for item in inputs {
+            if site.contents.amount_of(*item.product) < *item.amount {
+                supplied = false;
+            }
+        };
+        encoded(@(supplied, inputs)).span()
+    } else if name == 'ConstructionFinish' {
+        let _building = parse::<Entity>(args);
+        array![].span()
+    } else if name == 'SampleDepositStart' {
+        let _params = parse::<(Entity, u64, Entity, u64)>(args);
+        encoded(@influence::entities::current_id(entities::DEPOSIT.into())).span()
+    } else if name == 'SampleDepositFinish' {
+        let deposit = parse::<Entity>(args);
+        let data = components::get::<Deposit>(deposit.path()).unwrap();
+        assert(missions::state(a, key('Sample', deposit, 0)) == hash(@data), 'unbound sample');
+        assert(data.initial_yield == 0, 'not initial sampling');
+        array![].span()
+    } else if name == 'ExtractResourceStart' {
+        let (deposit, amount, building, _slot, _dest, _dest_slot) = parse::<
+            (Entity, u64, Entity, u64, Entity, u64)
+        >(args);
+        let data = own_building(a, building);
+        assert(data.building_type == buildings::EXTRACTOR, 'not extractor');
+        let dep = components::get::<Deposit>(deposit.path()).unwrap();
+        assert(
+            dep.resource >= products::WATER && dep.resource <= products::URANINITE,
+            'not raw resource'
+        );
+        let wide: u128 = amount.into();
+        let mass: u128 = ProductTypeTrait::by_type(dep.resource).mass.into();
+        assert(wide * mass >= 100000000, 'extraction below threshold');
+        array![].span()
+    } else if name == 'ExtractResourceFinish' {
+        let (building, slot) = parse::<(Entity, u64)>(args);
+        own_building(a, building);
+        let data = components::get::<Extractor>(array![building.into(), slot.into()].span())
+            .unwrap();
+        assert(
+            missions::state(a, key('Extraction', building, slot)) == hash(@data),
+            'unbound extraction'
+        );
+        encoded(@data).span()
+    } else if name == 'ProcessProductsStart' {
+        let (building, _slot, process, _output, recipes, _origin, _origin_slot, _dest, _dest_slot) =
+            parse::<
+            (Entity, u64, u64, u64, Fixed, Entity, u64, Entity, u64)
+        >(args);
+        let data = own_building(a, building);
+        assert(
+            data.building_type >= buildings::REFINERY && data.building_type <= buildings::FACTORY,
+            'unsupported processor'
+        );
+        assert(recipes >= FixedTrait::ONE(), 'recipe below threshold');
+        let inputs = influence::systems::production::helpers::inputs(
+            ProcessTypeTrait::by_type(process).inputs, recipes
+        );
+        let mut downstream = 0_u128;
+        let mut i = 0_u32;
+        loop {
+            if i == 5 {
+                break;
+            }
+            let (_, second, product) = routes(i);
+            if process == second && earned(a, 10 + i) && inputs.amount_of(product) > 0 {
+                downstream += missions::bit(i);
+            }
+            i += 1;
+        };
+        encoded(@(downstream, inputs)).span()
+    } else if name == 'ProcessProductsFinish' {
+        let (building, slot) = parse::<(Entity, u64)>(args);
+        own_building(a, building);
+        let data = components::get::<Processor>(array![building.into(), slot.into()].span())
+            .unwrap();
+        assert(
+            missions::state(a, key('Process', building, slot)) == hash(@data), 'unbound process'
+        );
+        let downstream: u128 = missions::state(a, key('Downstream', building, slot))
+            .try_into()
+            .unwrap();
+        encoded(@(data, downstream)).span()
+    } else if name == 'SendDelivery' {
+        let (origin, _slot, _items, dest, _dest_slot) = parse::<
+            (Entity, u64, Span<InventoryItem>, Entity, u64)
+        >(args);
+        assert(origin != dest, 'self delivery not economic');
+        encoded(@influence::entities::current_id('Delivery')).span()
+    } else if name == 'ReceiveDelivery' {
+        let delivery = parse::<Entity>(args);
+        if missions::state(a, key('Delivery', delivery, 0)) == 0 {
+            let data = components::get::<Delivery>(delivery.path()).unwrap();
+            assert(data.dest == selected(a, 1) && data.dest_slot == 2, 'unbound delivery');
+            own_building(a, data.dest);
+            bind_delivery(a, delivery, false);
+        }
+        array![].span()
+    } else if name == 'ResupplyFood' {
+        let (origin, _slot, _amount) = parse::<(Entity, u64, u64)>(args);
+        assert(!origin.is_empty(), 'allowance is not consumption');
+        array![].span()
+    } else if name == 'FillSellOrder' {
+        let (
+            _seller, _market, _product, _amount, _price, _storage, _slot, _dest, _dest_slot, buyer
+        ) =
+            parse::<
+            (Entity, Entity, u64, u64, u64, Entity, u64, Entity, u64, Entity)
+        >(args);
+        assert(buyer == a.subject, 'not campaign buyer');
+        encoded(@influence::entities::current_id('Delivery')).span()
+    } else {
+        panic_with_felt252('unsupported mission action');
+        array![].span()
+    }
+}
+
+fn post(
+    a: Assignment, name: felt252, args: Span<felt252>, snapshot: Span<felt252>, context: Context
+) {
+    if name == 'ConstructionPlan' {
+        let (kind, _lot) = parse::<(u64, Entity)>(args);
+        let building = new_entity(
+            entities::BUILDING, entities::BUILDING.into(), parse::<u64>(snapshot)
+        );
+        if kind == buildings::WAREHOUSE {
+            missions::set_state(a, 1, building.id.into());
+            earn(a, 0);
+        }
+    } else if name == 'ConstructionStart' {
+        let building = parse::<Entity>(args);
+        let (supplied, inputs) = parse::<(bool, Span<InventoryItem>)>(snapshot);
+        if supplied {
+            economic(a, inputs);
+        }
+        let data = components::get::<Building>(building.path()).unwrap();
+        missions::set_state(a, key('Built', building, 0), building_fingerprint(building, data));
+    } else if name == 'ConstructionFinish' {
+        own_building(a, parse::<Entity>(args));
+    } else if name == 'SampleDepositStart' {
+        let deposit = new_entity(
+            entities::DEPOSIT, entities::DEPOSIT.into(), parse::<u64>(snapshot)
+        );
+        let data = components::get::<Deposit>(deposit.path()).unwrap();
+        missions::set_state(a, key('Sample', deposit, 0), hash(@data));
+    } else if name == 'SampleDepositFinish' {
+        let deposit = parse::<Entity>(args);
+        missions::set_state(a, key('Sample', deposit, 0), 0);
+        record_sample(a, components::get::<Deposit>(deposit.path()).unwrap().initial_yield);
+    } else if name == 'ExtractResourceStart' {
+        let (_deposit, _amount, building, slot, _dest, _dest_slot) = parse::<
+            (Entity, u64, Entity, u64, Entity, u64)
+        >(args);
+        let data = components::get::<Extractor>(array![building.into(), slot.into()].span())
+            .unwrap();
+        assert(data.finish_time > context.now, 'zero duration');
+        missions::set_state(a, key('Extraction', building, slot), hash(@data));
+    } else if name == 'ExtractResourceFinish' {
+        let (building, slot) = parse::<(Entity, u64)>(args);
+        let data = parse::<Extractor>(snapshot);
+        missions::set_state(a, key('Extraction', building, slot), 0);
+        earn(a, 2);
+        storage_received(a, data.destination, data.destination_slot);
+    } else if name == 'ProcessProductsStart' {
+        let (
+            building, slot, _process, _output, _recipes, _origin, _origin_slot, _dest, _dest_slot
+        ) =
+            parse::<
+            (Entity, u64, u64, u64, Fixed, Entity, u64, Entity, u64)
+        >(args);
+        let (downstream, inputs) = parse::<(u128, Span<InventoryItem>)>(snapshot);
+        let data = components::get::<Processor>(array![building.into(), slot.into()].span())
+            .unwrap();
+        assert(data.finish_time > context.now, 'zero duration');
+        missions::set_state(a, key('Process', building, slot), hash(@data));
+        missions::set_state(a, key('Downstream', building, slot), downstream.into());
+        economic(a, inputs);
+    } else if name == 'ProcessProductsFinish' {
+        let (building, slot) = parse::<(Entity, u64)>(args);
+        let (data, downstream) = parse::<(Processor, u128)>(snapshot);
+        missions::set_state(a, key('Process', building, slot), 0);
+        missions::set_state(a, key('Downstream', building, slot), 0);
+        completed_process(a, data, downstream);
+        storage_received(a, data.destination, data.destination_slot);
+    } else if name == 'SendDelivery' || name == 'FillSellOrder' {
+        let delivery = new_entity(entities::DELIVERY, 'Delivery', parse::<u64>(snapshot));
+        bind_delivery(a, delivery, name == 'SendDelivery');
+    } else if name == 'ReceiveDelivery' {
+        credit_delivery(a, parse::<Entity>(args));
+    } else if name == 'ResupplyFood' {
+        let (_origin, _slot, amount) = parse::<(Entity, u64, u64)>(args);
+        economic(a, array![InventoryItem { product: products::FOOD, amount }].span());
+    } else {
+        panic_with_felt252('unsupported mission action');
+    }
+}
+
+fn invocation(name: felt252, data: Span<felt252>) -> (Assignment, Span<felt252>, Context) {
+    assert(data.len() >= 6, 'invalid native invocation');
+    let context = parse::<Context>(segment(data, data.len() - 4, 4));
+    let subject = parse::<Entity>(segment(data, data.len() - 6, 2));
+    let argument_count = if name == 'FillSellOrder' {
+        data.len() - 4
+    } else {
+        data.len() - 6
+    };
+    (
+        Assignment { campaign: config::get('STARTER_MISSION_CAMPAIGN'), subject, mission: 0 },
+        segment(data, 0, argument_count),
+        context
+    )
+}
+
 #[starknet::contract]
 mod StarterMissionCampaign {
     use array::{ArrayTrait, SpanTrait};
@@ -539,7 +514,7 @@ mod StarterMissionCampaign {
     use influence::common::missions::Assignment;
     use influence::components::Crew;
     use influence::types::{Context, Entity, EntityTrait};
-    use super::{check_context, authorize, action, credit_delivery, parse, validate};
+    use super::{check_context, authorize, credit_delivery, parse, validate};
     #[storage]
     struct Storage {}
     #[external(v0)]
@@ -571,8 +546,6 @@ mod StarterMissionCampaign {
                     'prerequisite incomplete'
                 );
             }
-        } else if operation == 1 {
-            action(a, action_name, args, context);
         } else if operation == 2 {
             if !args.is_empty() {
                 authorize(a, context);

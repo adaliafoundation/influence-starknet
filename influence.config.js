@@ -50,12 +50,16 @@ const testnetConfig = {
   // Missions (register and configure campaigns explicitly after declaration)
   RegisterMissionCampaign: { isSystem: true },
   AcceptMission: { isSystem: true },
-  MissionAction: { isSystem: true },
+  MissionObserver: { isSystem: true, isObservationPolicy: true },
+  MigrateStarterObserver: { isSystem: true },
+  UpgradeMissionCampaign: { isSystem: true },
   MissionValidate: { isSystem: true },
   ClaimMissionReward: { isSystem: true },
   ReadMissionState: { isSystem: true },
   ConfigureStarterMissions: { isSystem: true },
   StarterMissionCampaign: { isClass: true },
+  ConfigureColonizationMissions: { isSystem: true },
+  ColonizationMissionCampaign: { isClass: true },
 
   // Construction
   ConstructionAbandon: { isSystem: true },
@@ -221,12 +225,16 @@ export default {
     // Missions (register and configure campaigns explicitly after declaration)
     RegisterMissionCampaign: { isSystem: true },
     AcceptMission: { isSystem: true },
-    MissionAction: { isSystem: true },
+    MissionObserver: { isSystem: true, isObservationPolicy: true },
+    MigrateStarterObserver: { isSystem: true },
+    UpgradeMissionCampaign: { isSystem: true },
     MissionValidate: { isSystem: true },
     ClaimMissionReward: { isSystem: true },
     ReadMissionState: { isSystem: true },
     ConfigureStarterMissions: { isSystem: true },
     StarterMissionCampaign: { isClass: true },
+    ConfigureColonizationMissions: { isSystem: true },
+    ColonizationMissionCampaign: { isClass: true },
 
     // Construction
     ConstructionAbandon: { isSystem: true },

@@ -41,6 +41,10 @@ Environment should be now set up for proceeding with building the project and ru
 
 ## Setup
 
+- Use Node.js 22.23.4 or a later 22.x release. This minimum includes the fix for the
+  [Brotli decoder vulnerability (CVE-2026-111497)](https://nodejs.org/en/blog/vulnerability/october-2026-security-releases).
+- Run `nvm install && nvm use` to install and select the version pinned in `.nvmrc`.
+  npm enforces the supported Node.js version through `.npmrc` and `package.json`.
 - `npm install` (will run submodule update automatically to obtain the dependency library `cubit`)
 - Must setup `.env` to include `SIERRA_COMPILER_PATH`, currently dependent on v2.1.1
 - Relies on `starknet-devnet` version 0.7.2 to be installed in local `pyenv` for integration testing
