@@ -799,13 +799,13 @@
     }
   },
   "influence.CancelSellOrder.l23acv6j3lopk": {
-    "declaredAt": 1791197209948,
-    "declareTxHash": "0x392977194eaf2852c72cb0ee85527e823587073d6d1e12ed74887974ca75cdd",
-    "classHash": "0x253f0b0d8c06c16fff1be6871951e7088a59a5605b42ee831599aa30b5ff60e",
+    "declaredAt": 1793364253581,
+    "declareTxHash": "0x64fc1786f93d4dccece525d39e9a1084699fd35ee684303529149642b89b8b",
+    "classHash": "0x5d839363dc23731bea46b88be5014726360047fab9447563f70c934410d58cd",
     "baseline": {
-      "acceptedClassHash": "0x253f0b0d8c06c16fff1be6871951e7088a59a5605b42ee831599aa30b5ff60e",
-      "classHash": "0x253f0b0d8c06c16fff1be6871951e7088a59a5605b42ee831599aa30b5ff60e",
-      "updatedAt": "2026-10-05T10:47:20.601Z",
+      "acceptedClassHash": "0x5d839363dc23731bea46b88be5014726360047fab9447563f70c934410d58cd",
+      "classHash": "0x5d839363dc23731bea46b88be5014726360047fab9447563f70c934410d58cd",
+      "updatedAt": "2026-10-30T12:44:43.529Z",
       "reason": "updated on-chain class hash"
     }
   },
@@ -821,15 +821,15 @@
     }
   },
   "influence.FillBuyOrder.oc1joa0in95h8": {
-    "declaredAt": 1791197290972,
-    "classHash": "0x21e5267c7c02b4e163e1dcc23a3722376bd67c8fa84b82f94b30697bfdf740f",
+    "declaredAt": 1793364294089,
+    "classHash": "0x423692cb1e7d15267d7eaf85273ffbe9b70e3a21100682df3e4acb539d0dfdd",
     "baseline": {
-      "acceptedClassHash": "0x21e5267c7c02b4e163e1dcc23a3722376bd67c8fa84b82f94b30697bfdf740f",
-      "classHash": "0x21e5267c7c02b4e163e1dcc23a3722376bd67c8fa84b82f94b30697bfdf740f",
-      "updatedAt": "2026-10-05T10:48:44.605Z",
+      "acceptedClassHash": "0x423692cb1e7d15267d7eaf85273ffbe9b70e3a21100682df3e4acb539d0dfdd",
+      "classHash": "0x423692cb1e7d15267d7eaf85273ffbe9b70e3a21100682df3e4acb539d0dfdd",
+      "updatedAt": "2026-10-30T12:45:24.426Z",
       "reason": "updated on-chain class hash"
     },
-    "declareTxHash": "0x2e34911fac6ab4e8f2a311d2b963c0af85523d6ac87d89f5703db18a0ba5f62"
+    "declareTxHash": "0x6d5fb47e1f03eb438cc3009441a2100b0df725542fafed50cd282d4fc79074b"
   },
   "influence.AssignContractPolicy.ri9s6jgjltbce": {
     "declaredAt": 1789550734591,

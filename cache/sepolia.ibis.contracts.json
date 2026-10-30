@@ -570,13 +570,13 @@
     }
   },
   "influence.CancelSellOrder.l23acv6j3lopk": {
-    "declaredAt": 1790688401960,
-    "declareTxHash": "0x4f227bb41518a905917795e2b5d1cfccab8a0f4744c43d0bc6b176c4be75984",
-    "classHash": "0x253f0b0d8c06c16fff1be6871951e7088a59a5605b42ee831599aa30b5ff60e",
+    "declaredAt": 1793355816790,
+    "declareTxHash": "0xb7a90c90fb1fa35ecded1092c3b0d1b27e3e37c0dc3d886b4869ddfff0a055",
+    "classHash": "0x5d839363dc23731bea46b88be5014726360047fab9447563f70c934410d58cd",
     "baseline": {
-      "acceptedClassHash": "0x253f0b0d8c06c16fff1be6871951e7088a59a5605b42ee831599aa30b5ff60e",
-      "classHash": "0x253f0b0d8c06c16fff1be6871951e7088a59a5605b42ee831599aa30b5ff60e",
-      "updatedAt": "2026-09-29T13:27:11.425Z",
+      "acceptedClassHash": "0x5d839363dc23731bea46b88be5014726360047fab9447563f70c934410d58cd",
+      "classHash": "0x5d839363dc23731bea46b88be5014726360047fab9447563f70c934410d58cd",
+      "updatedAt": "2026-10-30T10:24:03.885Z",
       "reason": "updated on-chain class hash"
     }
   },
@@ -592,13 +592,13 @@
     }
   },
   "influence.FillBuyOrder.oc1joa0in95h8": {
-    "declaredAt": 1790688479862,
-    "declareTxHash": "0x38ca38d16a53289da714d1c885f2120f93aeeefab34a50d90be153338c67414",
-    "classHash": "0x21e5267c7c02b4e163e1dcc23a3722376bd67c8fa84b82f94b30697bfdf740f",
+    "declaredAt": 1793364089137,
+    "declareTxHash": "0x583651ff78bf92fcc1db7d9b1ed16dfacfba65c55c76f1b9685817fd6d097fa",
+    "classHash": "0x423692cb1e7d15267d7eaf85273ffbe9b70e3a21100682df3e4acb539d0dfdd",
     "baseline": {
-      "acceptedClassHash": "0x21e5267c7c02b4e163e1dcc23a3722376bd67c8fa84b82f94b30697bfdf740f",
-      "classHash": "0x21e5267c7c02b4e163e1dcc23a3722376bd67c8fa84b82f94b30697bfdf740f",
-      "updatedAt": "2026-09-29T13:28:28.792Z",
+      "acceptedClassHash": "0x423692cb1e7d15267d7eaf85273ffbe9b70e3a21100682df3e4acb539d0dfdd",
+      "classHash": "0x423692cb1e7d15267d7eaf85273ffbe9b70e3a21100682df3e4acb539d0dfdd",
+      "updatedAt": "2026-10-30T12:41:58.982Z",
       "reason": "updated on-chain class hash"
     }
   },

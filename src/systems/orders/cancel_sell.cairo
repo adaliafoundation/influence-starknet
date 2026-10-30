@@ -11,7 +11,7 @@ mod CancelSellOrder {
         modifier_type::types as modifier_types,
         delivery::{statuses as delivery_statuses, Delivery},
         order::{statuses as order_statuses, types as order_types, Order}};
-    use influence::config::{entities, errors, permissions};
+    use influence::config::{entities, errors};
     use influence::systems::orders::helpers::order_path;
     use influence::types::{SpanTraitExt, Context, Entity, EntityTrait, InventoryItem, InventoryItemTrait};
 
@@ -64,17 +64,14 @@ mod CancelSellOrder {
         caller_crew: Entity,
         context: Context
     ) {
-        // Check that crew is delegated, ready
+        // Cancellation does not require the crew to be ready.
         let mut crew_details = CrewDetailsTrait::new(caller_crew);
         crew_details.assert_all_but_ready(context.caller, context.now);
 
-        // When caller is not the seller, check that caller has control and the seller no longer has permission
-        if caller_crew != seller_crew {
-            caller_crew.assert_controls(exchange);
-            let can_sell = seller_crew.can(exchange, permissions::LIMIT_SELL);
-            let can_store = seller_crew.can(storage, permissions::REMOVE_PRODUCTS);
-            assert(!can_sell || !can_store, errors::ACCESS_DENIED);
-        }
+        assert(
+            caller_crew == seller_crew || caller_crew.controls(storage) || caller_crew.controls(exchange),
+            errors::ACCESS_DENIED
+        );
 
         // Validate order is cancellable
         let order_path = order_path(

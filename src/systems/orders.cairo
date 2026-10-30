@@ -110,7 +110,7 @@ mod tests {
 
     use influence::{config, components};
     use influence::common::inventory;
-    use influence::components::{Inventory, InventoryTrait, Location, LocationTrait,
+    use influence::components::{Control, ControlTrait, Crew, Exchange, Inventory, InventoryTrait, Location, LocationTrait,
         modifier_type::types as modifier_types,
         product_type::types as product_types,
         crewmate::{classes, crewmate_traits, departments},
@@ -208,9 +208,7 @@ mod tests {
         assert(total - order1 - order2 - order3 < 3, 'remainder too large');
     }
 
-    #[test]
-    #[available_gas(45000000)]
-    fn test_create_and_cancel_sell_order() {
+    fn create_and_cancel_sell_order(canceller: u8) {
         helpers::init();
         mocks::constants();
 
@@ -280,6 +278,18 @@ mod tests {
 
         starknet::testing::set_block_timestamp(50000);
 
+        let admin = mocks::delegated_crew(2, 'ADMIN');
+        components::set::<Location>(admin.path(), LocationTrait::new(station));
+        if canceller == 1 {
+            components::set::<Control>(warehouse.path(), ControlTrait::new(admin));
+        } else if canceller == 2 {
+            components::set::<Control>(market.path(), ControlTrait::new(admin));
+        }
+        let (caller_crew, caller_account) = if canceller == 0 { (crew, 'PLAYER') } else { (admin, 'ADMIN') };
+        let mut caller_data = components::get::<Crew>(caller_crew.path()).unwrap();
+        caller_data.ready_at = 999999;
+        components::set::<Crew>(caller_crew.path(), caller_data);
+
         // Cancel order
         let mut cancel_state = CancelSellOrder::contract_state_for_testing();
         CancelSellOrder::run(
@@ -290,8 +300,8 @@ mod tests {
             price: 100 * 1000000,
             storage: warehouse,
             storage_slot: 2,
-            caller_crew: crew,
-            context: mocks::context('PLAYER')
+            caller_crew: caller_crew,
+            context: mocks::context(caller_account)
         );
 
         // Check that the order was cancelled
@@ -303,5 +313,33 @@ mod tests {
         assert(delivery_data.status == delivery_statuses::SENT, 'wrong delivery status');
         assert(delivery_data.origin == market, 'wrong origin');
         assert(delivery_data.dest == warehouse, 'wrong destination');
+        assert(components::get::<Exchange>(market.path()).unwrap().orders == 0, 'wrong order count');
+        inventory_data = components::get::<Inventory>(inventory_path.span()).unwrap();
+        assert(inventory_data.reserved_mass == 1000000, 'return reservation removed');
+    }
+
+    #[test]
+    #[available_gas(65000000)]
+    fn test_create_and_cancel_sell_order() {
+        create_and_cancel_sell_order(0);
+    }
+
+    #[test]
+    #[available_gas(65000000)]
+    fn test_storage_controller_cancels_sell_order() {
+        create_and_cancel_sell_order(1);
+    }
+
+    #[test]
+    #[available_gas(65000000)]
+    fn test_marketplace_controller_cancels_sell_order_with_active_permissions() {
+        create_and_cancel_sell_order(2);
+    }
+
+    #[test]
+    #[available_gas(65000000)]
+    #[should_panic(expected: ('E2002: access denied', ))]
+    fn test_unrelated_crew_cannot_cancel_sell_order() {
+        create_and_cancel_sell_order(3);
     }
 }
