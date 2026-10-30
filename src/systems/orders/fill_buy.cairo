@@ -122,19 +122,24 @@ mod FillBuyOrder {
         let to_seller: u256 = *escrow_withdrawals.at(0).amount;
         let to_marketplace: u256 = *escrow_withdrawals.at(1).amount;
 
-        // Partial fills can leave rounding dust above this minimum refund. Escrow checks the
-        // withdrawal against the actual balance, allowing the client to refund that balance in full.
+        // Cancellation is identified by the actual refund, independent of the supplied fill amount.
+        // Including the recipient lets administrators fill zero-fee orders paid to their own wallet.
         let minimum_refund = value_with_maker_fee(order_data.amount * price, order_data.maker_fee);
-        let maybe_cancel = caller_crew.controls(storage) || buyer_crew == caller_crew;
+        let buyer_account = CrewDetailsTrait::new(buyer_crew).component.delegated_to;
+        let is_refund = to_seller >= minimum_refund.into() && to_marketplace == 0
+            && buyer_account == *escrow_withdrawals.at(0).recipient;
+        let can_cancel = buyer_crew == caller_crew || caller_crew.controls(storage) || caller_crew.controls(exchange);
 
-        if maybe_cancel && to_seller >= minimum_refund.into() && to_marketplace == 0 {
-            // Ensure that the recipient is set to the buyer crew's delegated account
-            let buyer_account = CrewDetailsTrait::new(buyer_crew).component.delegated_to;
-            assert(buyer_account == *escrow_withdrawals.at(0).recipient, 'incorrect recipient');
-
-            // The buyer or destination controller is cancelling the remaining order.
+        // If buyer and seller share a wallet, preserve the existing refund-first behavior.
+        if can_cancel && is_refund {
+            // The buyer, storage controller, or marketplace controller is cancelling the remaining order.
             order_data.status = order_statuses::CANCELLED;
             components::set::<Order>(order_path, order_data);
+
+            let mut exchange_data = components::get::<Exchange>(exchange.path()).expect(errors::EXCHANGE_NOT_FOUND);
+            assert(exchange_data.orders > 0, 'invalid order count');
+            exchange_data.orders -= 1;
+            components::set::<Exchange>(exchange.path(), exchange_data);
 
             // Remove reservation from destination inventory
             let mut storage_path: Array<felt252> = Default::default();
@@ -322,7 +327,7 @@ mod tests {
 
     use influence::{config, components, contracts};
     use influence::common::inventory;
-    use influence::components::{Control, ControlTrait, Exchange, Inventory, InventoryTrait, Location, LocationTrait,
+    use influence::components::{Control, ControlTrait, Crew, Exchange, Inventory, InventoryTrait, Location, LocationTrait,
         modifier_type::types as modifier_types,
         product_type::{types as product_types, ProductType},
         crewmate::{classes, departments, crewmate_traits},
@@ -345,7 +350,7 @@ mod tests {
     }
 
     fn fill_and_cancel_buy_order(
-        price: u64, initial_amount: u64, fill_amounts: Span<u64>, maker_fee: u64, refund_recipient: felt252
+        price: u64, initial_amount: u64, fill_amounts: Span<u64>, maker_fee: u64, refund_recipient: felt252, canceller: felt252, cancel_amount: u64
     ) {
         starknet::testing::set_contract_address(starknet::contract_address_const::<'DISPATCHER'>());
         helpers::init();
@@ -415,6 +420,15 @@ mod tests {
         let (deposit, _) = required_deposit(price * initial_amount, maker_fee, FixedTrait::ONE(), FixedTrait::ONE());
         let mut balance: u256 = deposit.into();
         let mut remaining_amount = initial_amount;
+        if canceller == 'market_fill' {
+            components::set::<Control>(market.path(), ControlTrait::new(crew));
+        }
+        if canceller == 'shared_refund' || canceller == 'shared_fill' {
+            let mut buyer_data = components::get::<Crew>(buyer_crew.path()).unwrap();
+            buyer_data.delegated_to = starknet::contract_address_const::<'PLAYER'>();
+            components::set::<Crew>(buyer_crew.path(), buyer_data);
+        }
+        let market_account = if canceller == 'market_fill' { 'PLAYER' } else { 'MARKET' };
         let mut state = FillBuyOrder::contract_state_for_testing();
         for fill_amount in fill_amounts {
             let (to_market, to_seller) = required_withdrawals(
@@ -423,7 +437,7 @@ mod tests {
             balance -= (to_market + to_seller).into();
             let withdrawals = array![
                 Withdrawal { recipient: starknet::contract_address_const::<'PLAYER'>(), amount: to_seller.into() },
-                Withdrawal { recipient: starknet::contract_address_const::<'MARKET'>(), amount: to_market.into() }
+                Withdrawal { recipient: market_account.try_into().unwrap(), amount: to_market.into() }
             ];
             FillBuyOrder::run(
                 ref state,
@@ -443,8 +457,53 @@ mod tests {
                 escrow_withdrawals: withdrawals.span(),
                 context: mocks::context('ESCROW')
             );
+            if canceller == 'shared_refund' {
+                assert(components::get::<Order>(order_path).unwrap().status == order_statuses::CANCELLED, 'refund must cancel');
+                assert(components::get::<Exchange>(market.path()).unwrap().orders == 0, 'wrong order count');
+                assert(components::get::<Inventory>(inventory_path).unwrap().reserved_mass == 0, 'reservation not released');
+                let source = components::get::<Inventory>(array![warehouse.into(), 2].span()).unwrap();
+                assert(source.mass == initial_amount * 1000, 'refund removed goods');
+                break;
+            }
             remaining_amount -= *fill_amount;
             assert(components::get::<Order>(order_path).unwrap().amount == remaining_amount, 'wrong order amount');
+        };
+
+        if canceller == 'shared_refund' { return; }
+
+        if remaining_amount == 0 {
+            assert(components::get::<Order>(order_path).unwrap().status == order_statuses::FILLED, 'order not filled');
+            assert(components::get::<Exchange>(market.path()).unwrap().orders == 0, 'wrong order count');
+            return;
+        }
+
+        // Keep the order creator distinct from the current storage or marketplace controller.
+        let (caller_crew, caller_account) = if canceller == 'storage' {
+            components::set::<Control>(destination.path(), ControlTrait::new(crew));
+            (crew, 'PLAYER')
+        } else if canceller == 'market' {
+            (market_crew, 'MARKET')
+        } else if canceller == 'unrelated' {
+            (crew, 'PLAYER')
+        } else if canceller == 'shared_fill' {
+            (buyer_crew, 'PLAYER')
+        } else {
+            (buyer_crew, 'BUYER')
+        };
+        let mut caller_data = components::get::<Crew>(caller_crew.path()).unwrap();
+        caller_data.ready_at = 999999;
+        components::set::<Crew>(caller_crew.path(), caller_data);
+
+        let invalid_refund = refund_recipient.try_into().unwrap()
+            != components::get::<Crew>(buyer_crew.path()).unwrap().delegated_to;
+        // Invalid refunds must also fail with a real, accessible source inventory.
+        let cancellation_origin = if invalid_refund || canceller == 'unrelated' {
+            components::set::<Control>(warehouse.path(), ControlTrait::new(caller_crew));
+            warehouse
+        } else if cancel_amount == 0 {
+            EntityTrait::new(0, 0)
+        } else {
+            destination
         };
 
         // Cancel remainder of order
@@ -467,11 +526,11 @@ mod tests {
             price: price,
             storage: destination,
             storage_slot: 2,
-            amount: 0,
-            origin: EntityTrait::new(0, 0),
-            origin_slot: 0,
-            caller_crew: buyer_crew,
-            escrow_caller: starknet::contract_address_const::<'BUYER'>(),
+            amount: cancel_amount,
+            origin: cancellation_origin,
+            origin_slot: if cancellation_origin.is_empty() { 0 } else { 2 },
+            caller_crew: caller_crew,
+            escrow_caller: caller_account.try_into().unwrap(),
             escrow_type: 2, // WITHDRAW
             escrow_token: starknet::contract_address_const::<'SWAY'>(),
             escrow_withdrawals: escrow_withdrawals.span(),
@@ -480,6 +539,7 @@ mod tests {
 
         let order_data = components::get::<Order>(order_path).unwrap();
         assert(order_data.status == order_statuses::CANCELLED, 'order not cancelled');
+        assert(components::get::<Exchange>(market.path()).unwrap().orders == 0, 'wrong order count');
 
         // Make sure storage reservation is cleared (not all of it since previous delivery still pending)
         inventory_data = components::get::<Inventory>(inventory_path).unwrap();
@@ -488,22 +548,109 @@ mod tests {
 
     #[test]
     #[available_gas(70000000)]
+    fn test_legacy_positive_amount_buy_cancellation() {
+        fill_and_cancel_buy_order(1, 101, array![].span(), 100, 'BUYER', 'buyer', 101);
+    }
+
+    #[test]
+    #[available_gas(70000000)]
+    fn test_legacy_cancellation_ignores_fill_amount_after_partial_fill() {
+        fill_and_cancel_buy_order(1, 303, array![101].span(), 100, 'BUYER', 'buyer', 1);
+    }
+
+    #[test]
+    #[available_gas(70000000)]
+    fn test_marketplace_admin_positive_amount_buy_cancellation() {
+        fill_and_cancel_buy_order(1, 101, array![].span(), 0, 'BUYER', 'market', 101);
+    }
+
+    #[test]
+    #[available_gas(70000000)]
+    fn test_storage_admin_positive_amount_buy_cancellation() {
+        fill_and_cancel_buy_order(1, 101, array![].span(), 0, 'BUYER', 'storage', 101);
+    }
+
+    #[test]
+    #[available_gas(70000000)]
+    fn test_shared_wallet_full_refund_preserves_cancellation_precedence() {
+        fill_and_cancel_buy_order(1, 101, array![101].span(), 0, 'PLAYER', 'shared_refund', 0);
+    }
+
+    #[test]
+    #[available_gas(70000000)]
+    fn test_shared_wallet_partial_fill_and_positive_amount_cancellation() {
+        fill_and_cancel_buy_order(1, 101, array![50].span(), 0, 'PLAYER', 'shared_fill', 51);
+    }
+
+    #[test]
+    #[available_gas(70000000)]
+    fn test_marketplace_controller_can_partially_fill_zero_fee_buy_order() {
+        fill_and_cancel_buy_order(1, 101, array![50].span(), 0, 'BUYER', 'market_fill', 51);
+    }
+
+    #[test]
+    #[available_gas(70000000)]
+    fn test_shared_wallet_full_fill_with_marketplace_fee() {
+        fill_and_cancel_buy_order(1, 101, array![101].span(), 100, 'PLAYER', 'shared_fill', 0);
+    }
+
+    #[test]
+    #[available_gas(70000000)]
+    #[should_panic(expected: ('E3007: incorrect amount', ))]
+    fn test_positive_amount_admin_cannot_redirect_refund_with_fees() {
+        fill_and_cancel_buy_order(1, 101, array![].span(), 100, 'MARKET', 'market', 101);
+    }
+
+    #[test]
+    #[available_gas(70000000)]
+    fn test_marketplace_controller_can_fill_entire_zero_fee_buy_order() {
+        fill_and_cancel_buy_order(1, 101, array![101].span(), 0, 'BUYER', 'market_fill', 0);
+    }
+
+    #[test]
+    #[available_gas(70000000)]
+    fn test_storage_controller_cancels_buy_order() {
+        fill_and_cancel_buy_order(1, 101, array![].span(), 100, 'BUYER', 'storage', 0);
+    }
+
+    #[test]
+    #[available_gas(70000000)]
+    fn test_marketplace_controller_cancels_buy_order() {
+        fill_and_cancel_buy_order(1, 303, array![101].span(), 100, 'BUYER', 'market', 0);
+    }
+
+    #[test]
+    #[available_gas(70000000)]
+    #[should_panic(expected: ('E3007: incorrect amount', ))]
+    fn test_marketplace_controller_cannot_take_buy_refund() {
+        fill_and_cancel_buy_order(1, 101, array![].span(), 100, 'MARKET', 'market', 0);
+    }
+
+    #[test]
+    #[available_gas(70000000)]
+    #[should_panic(expected: ('E3002: incorrect recipient', ))]
+    fn test_unrelated_crew_cannot_cancel_buy_order() {
+        fill_and_cancel_buy_order(1, 101, array![].span(), 100, 'BUYER', 'unrelated', 0);
+    }
+
+    #[test]
+    #[available_gas(70000000)]
     fn test_fill_buy_order() {
-        fill_and_cancel_buy_order(10000000, 1000, array![500].span(), 667, 'BUYER');
+        fill_and_cancel_buy_order(10000000, 1000, array![500].span(), 667, 'BUYER', 'buyer', 0);
     }
 
     #[test]
     #[available_gas(70000000)]
     fn test_cancel_fractional_maker_fee() {
         // Deposit is 102; the previous cancellation calculation required 103.
-        fill_and_cancel_buy_order(1, 101, array![].span(), 100, 'BUYER');
+        fill_and_cancel_buy_order(1, 101, array![].span(), 100, 'BUYER', 'buyer', 0);
     }
 
     #[test]
     #[available_gas(70000000)]
     fn test_cancel_fractional_maker_fee_after_fill() {
         // Deposit 306 minus a fill of 102 leaves 204, not the previous refund of 205.
-        fill_and_cancel_buy_order(1, 303, array![101].span(), 100, 'BUYER');
+        fill_and_cancel_buy_order(1, 303, array![101].span(), 100, 'BUYER', 'buyer', 0);
     }
 
     #[test]
@@ -511,14 +658,14 @@ mod tests {
     fn test_cancel_refunds_partial_fill_dust() {
         // Deposit 303 minus three fills of 50 leaves 153. Recalculating the remaining
         // value and fee gives 151 rounded down or 152 rounded up, both leaving dust.
-        fill_and_cancel_buy_order(1, 300, array![50, 50, 50].span(), 100, 'BUYER');
+        fill_and_cancel_buy_order(1, 300, array![50, 50, 50].span(), 100, 'BUYER', 'buyer', 0);
     }
 
     #[test]
-    #[should_panic(expected: ('incorrect recipient', ))]
+    #[should_panic(expected: ('E3002: incorrect recipient', ))]
     #[available_gas(70000000)]
     fn test_cancel_rejects_wrong_refund_recipient() {
-        fill_and_cancel_buy_order(1, 101, array![].span(), 100, 'PLAYER');
+        fill_and_cancel_buy_order(1, 101, array![].span(), 100, 'PLAYER', 'buyer', 0);
     }
 
     #[test]
