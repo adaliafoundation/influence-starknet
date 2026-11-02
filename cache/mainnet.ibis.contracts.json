@@ -19,62 +19,62 @@
   },
   "influence.Asteroid.g6kdh3ma8rej4": {
     "address": "0x603cf837055c64d026a3c5a9e3a83036cea6c4a3f68a9e19f7a687d726fe817",
-    "classHash": "0x25ab0e73e56b2c4f3290605e4152e98ca5c98118097f4be50237964d23a78d6",
+    "classHash": "0x65f515144dc38e94fff2771cc0929f5ba5675ac1e1a29e12f24fa695b25e927",
     "constructorArgs": {
       "name": "0x496e666c75656e63652041737465726f696473",
       "symbol": "0x494e46415354",
       "admin": "0x5e2b51507ef496aece06fa5dd94a68fb22cf6f2bfc1d54450ac23bc18c55f91"
     },
-    "declaredAt": 1717579886823,
-    "declareTxHash": "0xd3e9393aec80461bf3fa58b9dc73a29a2b40dde3df51dbdefe7f27eb48f9c8",
+    "declaredAt": 1793636583170,
+    "declareTxHash": "0x2ab7d10855ca2b6f6e4104456fc4c687e0d7c2d515e01d0a2eff50fca67afc5",
     "deployedAt": 1694564840593,
     "deployTxHash": "0x65ca95a917da42f5206273d40f775ed95cc580ffab9ad1f368448c3a0b721c6",
     "deployer": "0x5e2b51507ef496aece06fa5dd94a68fb22cf6f2bfc1d54450ac23bc18c55f91",
     "baseline": {
-      "acceptedClassHash": "0x25ab0e73e56b2c4f3290605e4152e98ca5c98118097f4be50237964d23a78d6",
-      "classHash": "0x43462fed89da4bc482af3106947c7f728be6499a75e43308eeb82a71282cd42",
-      "createdAt": "2026-07-16",
-      "reason": "accepted Cairo 2.7 migration baseline"
+      "acceptedClassHash": "0x65f515144dc38e94fff2771cc0929f5ba5675ac1e1a29e12f24fa695b25e927",
+      "classHash": "0x65f515144dc38e94fff2771cc0929f5ba5675ac1e1a29e12f24fa695b25e927",
+      "updatedAt": "2026-11-02T16:23:32.135Z",
+      "reason": "updated on-chain class hash"
     }
   },
   "influence.Crew.6g29cnk9i93li": {
     "address": "0x7280a807c8b79379bec87919433b7b836b93a92e6d71b24ee99f4ffe33dd337",
-    "classHash": "0xa059903fbd4119127cfc3c7c12a42a9cb26c0576dfce9906455e775306b658",
+    "classHash": "0x3d4a1c4a48f94151d0ed4876566c9ddd8beb1cb99945165dcb2c3ae2d775e1",
     "constructorArgs": {
       "name": "0x496e666c75656e6365204372657773",
       "symbol": "0x494e46435257",
       "admin": "0x5e2b51507ef496aece06fa5dd94a68fb22cf6f2bfc1d54450ac23bc18c55f91"
     },
-    "declaredAt": 1789549312870,
-    "declareTxHash": "0x6c84580bdd5a4b23796fd0c4687ae63b7ca73256efb0809be05a753d2f6718f",
+    "declaredAt": 1793636616875,
+    "declareTxHash": "0x7ed2115cd62045b48ca4326e97afb9b6dd06d68236a50e6ee0bd602db6a8fe1",
     "deployedAt": 1694564904556,
     "deployTxHash": "0x4ef244f3ae60a52f10c787a7f1ecacedf04ccadef90cdac2ece5d010421588d",
     "deployer": "0x5e2b51507ef496aece06fa5dd94a68fb22cf6f2bfc1d54450ac23bc18c55f91",
     "baseline": {
-      "acceptedClassHash": "0xa059903fbd4119127cfc3c7c12a42a9cb26c0576dfce9906455e775306b658",
-      "classHash": "0xa059903fbd4119127cfc3c7c12a42a9cb26c0576dfce9906455e775306b658",
-      "updatedAt": "2026-09-16T09:02:33.778Z",
+      "acceptedClassHash": "0x3d4a1c4a48f94151d0ed4876566c9ddd8beb1cb99945165dcb2c3ae2d775e1",
+      "classHash": "0x3d4a1c4a48f94151d0ed4876566c9ddd8beb1cb99945165dcb2c3ae2d775e1",
+      "updatedAt": "2026-11-02T16:24:03.935Z",
       "reason": "updated on-chain class hash"
     }
   },
   "influence.Crewmate.62o2adjc00q1k": {
     "address": "0x241b9c4ce12c06f49fee2ec7c16337386fa5185168f538a7631aacecdf3df74",
-    "classHash": "0x23949923348a5a167c7555e6f247aeef2f217fcb2f8e45c3a521f1ddafbbc43",
+    "classHash": "0x6f76d2d14530657d2648df61b411a3e918f9f6c4e9fa68c30a2a8966d34209",
     "constructorArgs": {
       "name": "0x496e666c75656e636520437265776d61746573",
       "symbol": "0x494e4643524d",
       "initial_token": 20000,
       "admin": "0x5e2b51507ef496aece06fa5dd94a68fb22cf6f2bfc1d54450ac23bc18c55f91"
     },
-    "declaredAt": 1789549358631,
-    "declareTxHash": "0x50040a6aa22010efdaa07e2e51a5992514fe27f333048df076db66704425abe",
+    "declaredAt": 1793636648987,
+    "declareTxHash": "0x1d5856d8a14a247d754058e468ff3f3277fb919f0039ac766bcbca1e8dcbabd",
     "deployedAt": 1694564998004,
     "deployTxHash": "0x2f858e2176b6839959346f4cc6cd6af76f8e5a5a5bf8cbd453d7ce2c16e65c6",
     "deployer": "0x5e2b51507ef496aece06fa5dd94a68fb22cf6f2bfc1d54450ac23bc18c55f91",
     "baseline": {
-      "acceptedClassHash": "0x23949923348a5a167c7555e6f247aeef2f217fcb2f8e45c3a521f1ddafbbc43",
-      "classHash": "0x23949923348a5a167c7555e6f247aeef2f217fcb2f8e45c3a521f1ddafbbc43",
-      "updatedAt": "2026-09-16T09:03:10.140Z",
+      "acceptedClassHash": "0x6f76d2d14530657d2648df61b411a3e918f9f6c4e9fa68c30a2a8966d34209",
+      "classHash": "0x6f76d2d14530657d2648df61b411a3e918f9f6c4e9fa68c30a2a8966d34209",
+      "updatedAt": "2026-11-02T16:24:37.271Z",
       "reason": "updated on-chain class hash"
     }
   },
@@ -319,22 +319,22 @@
   },
   "influence.Ship.tr0ai25metpku": {
     "address": "0x4369e47e647ab5fc4d36cee26590276b99a89a83fc3306462d21d366611fde3",
-    "classHash": "0x10151e4373357fabb6af76bb0801584cb4349979d0f4dfbf2138b332158dc2e",
+    "classHash": "0x310bab15379b8f79f30e4e161753ef9b6be174570828f5421340e4446e49c20",
     "constructorArgs": {
       "name": "0x496e666c75656e6365205368697073",
       "symbol": "0x494e46534850",
       "admin": "0x795a0690f51905f34f2d52b482e18ebc39b87638e30eb4bd4fc65ff67a7beec"
     },
-    "declaredAt": 1717580430319,
-    "declareTxHash": "0x369c0d13c383bfac6df48e2c0802e2dea1ac0edf6e9982694b803e8b601e779",
+    "declaredAt": 1793636682039,
+    "declareTxHash": "0x701e0ea2d7296ac4e84b71ee1f686dcea1f6148194277dfc3bf00d9e426765a",
     "deployedAt": 1717580430319,
     "deployTxHash": "0x16925b6c0bb392fd59df6e329421c211987406c21a796c1784bb86bc4846efd",
     "deployer": "0x795a0690f51905f34f2d52b482e18ebc39b87638e30eb4bd4fc65ff67a7beec",
     "baseline": {
-      "acceptedClassHash": "0x10151e4373357fabb6af76bb0801584cb4349979d0f4dfbf2138b332158dc2e",
-      "classHash": "0x3d713a2e094190f5bf3d46e426a0a27a5a620dd1942919266d6d25bf35adeb8",
-      "createdAt": "2026-07-16",
-      "reason": "accepted Cairo 2.7 migration baseline"
+      "acceptedClassHash": "0x310bab15379b8f79f30e4e161753ef9b6be174570828f5421340e4446e49c20",
+      "classHash": "0x310bab15379b8f79f30e4e161753ef9b6be174570828f5421340e4446e49c20",
+      "updatedAt": "2026-11-02T16:25:08.843Z",
+      "reason": "updated on-chain class hash"
     }
   },
   "influence.AcceptContractAgreement.1rcpa6skfbegk": {
