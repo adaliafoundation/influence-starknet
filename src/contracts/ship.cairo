@@ -46,6 +46,7 @@ trait IShip<TContractState> {
 
 #[starknet::contract]
 mod Ship {
+    use influence::common::nft_approvals;
     use array::{ArrayTrait, SpanTrait};
     use option::{OptionTrait};
     use starknet::{ClassHash, ContractAddress, SyscallResultTrait, get_caller_address};
@@ -260,6 +261,7 @@ mod Ship {
         let owner = self.owners.read(token_id);
         let caller = get_caller_address();
         assert(owner != to, 'ERC721: approval to owner');
+        assert(!nft_approvals::is_revoked(to), 'ERC721: revoked operator');
 
         let approved_for_all = is_approved_for_all(@self, owner, caller);
         assert(owner == caller || approved_for_all , 'ERC721: unauthorized caller');
@@ -287,7 +289,11 @@ mod Ship {
     #[external(v0)]
     fn get_approved(self: @ContractState, token_id: u256) -> ContractAddress {
         assert(_exists(self, token_id), 'ERC721: invalid token ID');
-        return self.token_approvals.read(token_id);
+        let approved = self.token_approvals.read(token_id);
+        if nft_approvals::is_revoked(approved) {
+            return Zeroable::zero();
+        }
+        return approved;
     }
 
     #[external(v0)]
@@ -297,7 +303,7 @@ mod Ship {
 
     #[external(v0)]
     fn is_approved_for_all(self: @ContractState, owner: ContractAddress, operator: ContractAddress) -> bool {
-        return self.operator_approvals.read((owner, operator));
+        return !nft_approvals::is_revoked(operator) && self.operator_approvals.read((owner, operator));
     }
 
     #[external(v0)]
@@ -340,6 +346,7 @@ mod Ship {
     fn set_approval_for_all(ref self: ContractState, operator: ContractAddress, approved: bool) {
         let owner = get_caller_address();
         assert(owner != operator, 'ERC721: self approval');
+        assert(!approved || !nft_approvals::is_revoked(operator), 'ERC721: revoked operator');
         self.operator_approvals.write((owner, operator), approved);
         self.emit(ApprovalForAll { owner, operator, approved });
     }
@@ -528,6 +535,9 @@ mod Ship {
 
 #[cfg(test)]
 mod tests {
+    use starknet::storage::StorageMapWriteAccess;
+    use influence::common::nft_approvals;
+
     use array::{ArrayTrait, SpanTrait};
     use option::OptionTrait;
     use result::ResultTrait;
@@ -860,5 +870,134 @@ mod tests {
         ship.fill_sell_order(token_id);
         assert(ship.get_sell_order(token_id) == 0, 'wrong price');
         assert(ship.owner_of(token_id) == buyer, 'wrong owner');
+    }
+
+    // Seed storage directly to model approvals granted before this upgrade.
+    fn legacy_approval_state(operator: starknet::ContractAddress, for_all: bool) -> (Ship::ContractState, u256) {
+        let owner = starknet::contract_address_const::<'ADMIN'>();
+        starknet::testing::set_caller_address(owner);
+        let mut state = Ship::contract_state_for_testing();
+        Ship::constructor(ref state, 'Test', 'TEST', owner);
+        Ship::add_grant(ref state, owner, Ship::roles::MINTER);
+        let token_id = Ship::mint_with_auto_id(ref state, owner);
+        if for_all {
+            state.operator_approvals.write((owner, operator), true);
+        } else {
+            state.token_approvals.write(token_id, operator);
+        }
+        return (state, token_id);
+    }
+
+    #[test]
+    #[available_gas(10000000)]
+    fn test_revoked_approval_views_and_authorization() {
+        let owner = starknet::contract_address_const::<'ADMIN'>();
+        let (mut state, token_id) = legacy_approval_state(starknet::contract_address_const::<0>(), false);
+        let mut operators = nft_approvals::revoked_operators();
+        loop {
+            let operator = match operators.pop_front() {
+                Option::Some(operator) => (*operator).try_into().unwrap(),
+                Option::None(_) => { break; },
+            };
+            state.token_approvals.write(token_id, operator);
+            assert(Ship::get_approved(@state, token_id) == starknet::contract_address_const::<0>(), 'revoked token approval visible');
+            assert(Ship::getApproved(@state, token_id) == starknet::contract_address_const::<0>(), 'revoked token alias visible');
+            assert(!Ship::_is_approved_or_owner(@state, operator, token_id), 'revoked token approval accepted');
+            state.operator_approvals.write((owner, operator), true);
+            assert(!Ship::is_approved_for_all(@state, owner, operator), 'revoked operator visible');
+            assert(!Ship::isApprovedForAll(@state, owner, operator), 'revoked operator alias visible');
+            assert(!Ship::_is_approved_or_owner(@state, operator, token_id), 'revoked operator accepted');
+            assert(Ship::_is_approved_or_owner(@state, owner, token_id), 'owner authorization changed');
+        };
+    }
+
+    #[test]
+    #[available_gas(2000000)]
+    #[should_panic(expected: ('ERC721: unauthorized caller', ))]
+    fn test_revoked_approval_transfer_from() {
+        let operator: starknet::ContractAddress = nft_approvals::PYRAMID_TRANSFER_MANAGER.try_into().unwrap();
+        let (mut state, token_id) = legacy_approval_state(operator, false);
+        starknet::testing::set_caller_address(operator);
+        Ship::transfer_from(ref state, starknet::contract_address_const::<'ADMIN'>(), operator, token_id);
+    }
+
+    #[test]
+    #[available_gas(2000000)]
+    #[should_panic(expected: ('ERC721: unauthorized caller', ))]
+    fn test_revoked_approval_transferFrom() {
+        let operator: starknet::ContractAddress = nft_approvals::PYRAMID_TRANSFER_MANAGER.try_into().unwrap();
+        let (mut state, token_id) = legacy_approval_state(operator, true);
+        starknet::testing::set_caller_address(operator);
+        Ship::transferFrom(ref state, starknet::contract_address_const::<'ADMIN'>(), operator, token_id);
+    }
+
+    #[test]
+    #[available_gas(2000000)]
+    #[should_panic(expected: ('ERC721: unauthorized caller', ))]
+    fn test_revoked_approval_safe_transfer_from() {
+        let operator: starknet::ContractAddress = nft_approvals::PYRAMID_TRANSFER_MANAGER.try_into().unwrap();
+        let (mut state, token_id) = legacy_approval_state(operator, true);
+        starknet::testing::set_caller_address(operator);
+        Ship::safe_transfer_from(ref state, starknet::contract_address_const::<'ADMIN'>(), operator, token_id, array![].span());
+    }
+
+    #[test]
+    #[available_gas(2000000)]
+    #[should_panic(expected: ('ERC721: unauthorized caller', ))]
+    fn test_revoked_approval_safeTransferFrom() {
+        let operator: starknet::ContractAddress = nft_approvals::PYRAMID_TRANSFER_MANAGER.try_into().unwrap();
+        let (mut state, token_id) = legacy_approval_state(operator, false);
+        starknet::testing::set_caller_address(operator);
+        Ship::safeTransferFrom(ref state, starknet::contract_address_const::<'ADMIN'>(), operator, token_id, array![].span());
+    }
+
+    #[test]
+    #[available_gas(2000000)]
+    #[should_panic(expected: ('ERC721: unauthorized caller', ))]
+    fn test_revoked_operator_cannot_delegate_approval() {
+        let operator: starknet::ContractAddress = nft_approvals::MINT_SQUARE_TRANSFER_MANAGER.try_into().unwrap();
+        let (mut state, token_id) = legacy_approval_state(operator, true);
+        starknet::testing::set_caller_address(operator);
+        Ship::approve(ref state, starknet::contract_address_const::<'OTHER'>(), token_id);
+    }
+
+    #[test]
+    #[available_gas(2000000)]
+    #[should_panic(expected: ('ERC721: revoked operator', ))]
+    fn test_revoked_operator_cannot_be_reapproved() {
+        let operator: starknet::ContractAddress = nft_approvals::MINT_SQUARE_LEGACY_TRANSFER_MANAGER.try_into().unwrap();
+        let (mut state, _) = legacy_approval_state(operator, false);
+        Ship::setApprovalForAll(ref state, operator, true);
+    }
+
+    #[test]
+    #[available_gas(2000000)]
+    #[should_panic(expected: ('ERC721: revoked operator', ))]
+    fn test_revoked_token_approval_cannot_be_reapproved() {
+        let operator: starknet::ContractAddress = nft_approvals::MINT_SQUARE_LEGACY_TRANSFER_MANAGER.try_into().unwrap();
+        let (mut state, token_id) = legacy_approval_state(operator, false);
+        Ship::approve(ref state, operator, token_id);
+    }
+
+    #[test]
+    #[available_gas(2000000)]
+    fn test_revoked_approval_can_be_cleared_and_owner_can_transfer() {
+        let owner = starknet::contract_address_const::<'ADMIN'>();
+        let operator: starknet::ContractAddress = nft_approvals::PYRAMID_TRANSFER_MANAGER.try_into().unwrap();
+        let (mut state, token_id) = legacy_approval_state(operator, true);
+        Ship::setApprovalForAll(ref state, operator, false);
+        Ship::approve(ref state, starknet::contract_address_const::<0>(), token_id);
+        Ship::transferFrom(ref state, owner, starknet::contract_address_const::<'OTHER'>(), token_id);
+        assert(Ship::ownerOf(@state, token_id) == starknet::contract_address_const::<'OTHER'>(), 'owner transfer failed');
+    }
+
+    #[test]
+    #[available_gas(2000000)]
+    fn test_unrevoked_operator_can_transfer() {
+        let operator = starknet::contract_address_const::<'OTHER_OPERATOR'>();
+        let (mut state, token_id) = legacy_approval_state(operator, true);
+        starknet::testing::set_caller_address(operator);
+        Ship::transferFrom(ref state, starknet::contract_address_const::<'ADMIN'>(), operator, token_id);
+        assert(Ship::ownerOf(@state, token_id) == operator, 'unrevoked operator blocked');
     }
 }

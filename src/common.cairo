@@ -6,6 +6,7 @@ mod crew;
 mod inventory;
 mod math;
 mod nft;
+mod nft_approvals;
 mod packed;
 mod position;
 mod propulsion;
