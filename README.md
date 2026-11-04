@@ -9,33 +9,13 @@ The licensor considers non-commercial use under this license to include deployme
 
 ## Environment prerequisites
 
-This project uses historical version 2.1.1 of [cairo](https://github.com/starkware-libs/cairo/tree/v2.1.1),
-0.6.2 of [scarb](https://github.com/software-mansion/scarb/tree/release/v0.6.2) and 1.76.0 of Rust. These cairo and
-scarb versions are no longer readily available using the https://sh.starkup.sh path. We need to build them using Rust.
+This project uses [scarb](https://github.com/software-mansion/scarb) 2.7.x, which bundles the
+Cairo 2.7.0 compiler matching the project's `cairo-version` pin and provides the `cairo-test`
+runner through the `cairo_test` dev-dependency. Install it using the standard installer from
+https://docs.swmansion.com/scarb/download.
 
-Rust is easiest obtained by installing [rustup](https://rustup.rs/). This tool allows you to obtain complete toolchains
-for specific versions of Rust. After install, invoke the following commands to set your local environment to use version
-1.76.0 of Rust:
-
-    rustup toolchain install 1.76.0
-    rustup override set 1.76.0
-
-To build cairo:
-
-    git clone https://github.com/starkware-libs/cairo.git
-    cd cairo
-    git checkout v2.1.1
-    cargo build --all --release
-
-To build scarb:
-
-    git clone https://github.com/software-mansion/scarb.git
-    cd scarb
-    git checkout v0.6.2
-    cargo build --all --release
-
-You need to set `$PATH_TO_CAIRO/target/release` and `$PATH_TO_SCARB/target/release` directories into your `PATH`
-environment variable to be able to easily access the cairo and scarb CLI commands.
+The project is known to build with scarb 2.7.1. Newer scarb releases (2.8+) are not supported
+at this time and fail during Sierra generation.
 
 Environment should be now set up for proceeding with building the project and running test-contracts.
 
@@ -46,19 +26,18 @@ Environment should be now set up for proceeding with building the project and ru
 - Run `nvm install && nvm use` to install and select the version pinned in `.nvmrc`.
   npm enforces the supported Node.js version through `.npmrc` and `package.json`.
 - `npm install` (will run submodule update automatically to obtain the dependency library `cubit`)
-- Must setup `.env` to include `SIERRA_COMPILER_PATH`, currently dependent on v2.1.1
 - Relies on `starknet-devnet` version 0.7.2 to be installed in local `pyenv` for integration testing
 - Unzip `devnet.dump.zip` in `./test/seeds` to `./test/seeds/devnet.dump` for integration testing
 
 ## Build
 
-This step depends on the cairo and scarb builds to be accessible in your `PATH`.
+This step depends on `scarb` to be accessible in your `PATH`.
 
 - `npm run build`
 
 ## Contract unit tests
 
-This step depends on the `cairo-test` command from the cairo build to be accessible in your `PATH`.
+This step depends on `scarb` to be accessible in your `PATH`.
 
 - `npm run test-contracts`
 
