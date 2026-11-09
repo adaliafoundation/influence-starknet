@@ -1264,13 +1264,13 @@
     }
   },
   "influence.GrantOffchainCrewmate.budre00m5oq1a": {
-    "declaredAt": 1788430167594,
-    "declareTxHash": "0x79f86cde1002d1aabe14278a5df7137859b100efb3b5b5dbec33484dd475c97",
-    "classHash": "0x29ed54bfb8741f910508bedba1ef69a2d62d7a09ce85bca077c6bbea62e0046",
+    "declaredAt": 1793895540294,
+    "declareTxHash": "0x7906ca1f489a45ad0946be0fd2ed13daffa6e4dfc7ee730c0421fd5212e9cdc",
+    "classHash": "0x6699277a296fae196c72994d66eafc9f4ba2772bb8737c482d563b4566db81c",
     "baseline": {
-      "acceptedClassHash": "0x29ed54bfb8741f910508bedba1ef69a2d62d7a09ce85bca077c6bbea62e0046",
-      "classHash": "0x29ed54bfb8741f910508bedba1ef69a2d62d7a09ce85bca077c6bbea62e0046",
-      "updatedAt": "2026-09-03T10:10:00.942Z",
+      "acceptedClassHash": "0x6699277a296fae196c72994d66eafc9f4ba2772bb8737c482d563b4566db81c",
+      "classHash": "0x6699277a296fae196c72994d66eafc9f4ba2772bb8737c482d563b4566db81c",
+      "updatedAt": "2026-11-05T16:19:28.760Z",
       "reason": "updated on-chain class hash"
     }
   },
