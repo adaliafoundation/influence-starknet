@@ -15,7 +15,7 @@ mod GrantOffchainCrewmate {
         station_type::StationTypeTrait};
     use influence::config::{entities, errors, permissions, roles};
     use influence::contracts::crewmate::{ICrewmateDispatcher, ICrewmateDispatcherTrait};
-    use influence::systems::helpers::change_name;
+    use influence::systems::helpers::{change_name, create_restricted_crew};
     use influence::types::{Context, ContextTrait, Entity, EntityTrait, StringTrait};
 
     #[storage]
@@ -63,7 +63,7 @@ mod GrantOffchainCrewmate {
         external_ref: felt252,
         restricted_until: u64,
         station: Entity,
-        caller_crew: Entity,
+        mut caller_crew: Entity,
         class: u64,
         impactful: Span<u64>,
         cosmetic: Span<u64>,
@@ -84,6 +84,11 @@ mod GrantOffchainCrewmate {
         assert(external_ref != 0, 'external ref required');
         assert(!self.external_refs.read(external_ref), 'external ref used');
         assert(caller_crew.label == entities::CREW, errors::INCORRECT_ENTITY_TYPE);
+
+        if caller_crew.id == 0 {
+            let (crew, _) = create_restricted_crew(station, recipient, restricted_until, context.caller);
+            caller_crew = crew;
+        }
 
         let mut crew_details = CrewDetailsTrait::new(caller_crew);
         crew_details.assert_ready(context.now);
@@ -233,6 +238,28 @@ mod tests {
             restriction.restriction_authority == starknet::contract_address_const::<'STRIPE_JOB'>(),
             'wrong authority'
         );
+    }
+
+    #[test]
+    #[available_gas(30000000)]
+    fn test_creates_restricted_crew_for_new_recruitment() {
+        let (_, station) = setup();
+        let mut state = GrantOffchainCrewmate::contract_state_for_testing();
+        grant(
+            ref state, EntityTrait::new(entities::CREW, 0), station,
+            starknet::contract_address_const::<'PLAYER'>(),
+            'stripe:new-crew', classes::PILOT, mocks::context('STRIPE_JOB')
+        );
+        let crewmate = EntityTrait::new(entities::CREWMATE, 20000);
+        let crew = components::get::<Control>(crewmate.path()).unwrap().controller;
+        assert(crew.id != 0 && crew.id != 1, 'crew not created');
+        let data = components::get::<Crew>(crew.path()).unwrap();
+        assert(data.roster.len() == 1, 'wrong crew size');
+        assert(*data.roster.at(0) == crewmate.id, 'wrong recruit');
+        assert(components::get::<Location>(crew.path()).unwrap().location == station, 'wrong location');
+        let contract = ICrewDispatcher { contract_address: contracts::get('Crew') };
+        assert(contract.ownerOf(crew.id.into()) == starknet::contract_address_const::<'PLAYER'>(), 'wrong crew owner');
+        assert(contract.is_restricted(crew.id.into()), 'crew unrestricted');
     }
 
     #[test]
