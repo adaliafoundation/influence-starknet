@@ -79,6 +79,16 @@ This step depends on the `cairo-test` command from the cairo build to be accessi
 
 ## Deploying
 
+Use `prerelease` for changes being validated on Sepolia and `main` for approved
+production code. Feature PRs target `prerelease`; after validation, merge the
+release into `main`. Branch production hotfixes from `main` and merge them back
+into `prerelease` after release.
+
+Contract deployments remain manual: deploy Sepolia from `prerelease` and mainnet
+from `main`, recording the source commit and deployed class hashes. Coordinate
+contract activation with the matching server and client versions; their automatic
+prerelease image deployments do not deploy or activate contracts.
+
 ### The Dispatcher, contracts (NFTs, etc.) and systems are updated and registered using:
 - `npm run manager update -- --name <contractName> --network <networkName> --account <accountName`
 - `npm run manager updateAll -- --network <networkName> --account <accountName`
