@@ -14,6 +14,16 @@ fn init() {
     Dispatcher::constructor(ref dispatcher_state, starknet::contract_address_const::<'ADMIN'>());
 }
 
+fn error_contains(error: Array<felt252>, expected: felt252) -> bool {
+    let mut found = false;
+    for value in error.span() {
+        if *value == expected {
+            found = true;
+        };
+    };
+    return found;
+}
+
 fn gas_report(log: felt252, prev: u128) -> u128 {
     let mut gas = testing::get_available_gas();
     log.print();
